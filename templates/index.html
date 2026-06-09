@@ -1,0 +1,31 @@
+<div class="container mt-4">
+
+    <h1>🎬 Video Manager</h1>
+
+    <div class="row">
+
+        {% for video in videos %}
+
+        <div class="col-md-4">
+
+            <div class="card mb-3">
+
+                <div class="card-body">
+
+                    <h5>{{ video.name }}</h5>
+
+                    <p>大小：{{ video.size }} MB</p>
+
+                    <p>日期：{{ video.date }}</p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+</div>
