@@ -1,3 +1,4 @@
+import subprocess
 from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
 
@@ -35,3 +36,19 @@ async def home(request: Request):
             "videos":videos
         }
     )
+@app.get("/reveal/{filename}")
+async def reveal_file(filename:str):
+
+    Path = MEDIA_DIR / filename
+
+    if Path.exists():
+
+        subprocess.run([
+            "explorer",
+            "?slect,",
+            str(Path.resolve())
+        ])
+
+        return{"success":True}
+    return{"success":False}
+
