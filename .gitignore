@@ -1,0 +1,5 @@
+venv/
+__ptcache__
+media/*.mp4
+media/*.mov
+media/*.mkv
