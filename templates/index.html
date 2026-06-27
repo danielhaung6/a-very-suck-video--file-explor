@@ -1,35 +1,102 @@
-<div class="container mt-4">
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Video Manager</title>
+    <style>
+        body {
+            font-family: Arial, "Microsoft JhengHei", sans-serif;
+            margin: 32px;
+            background: #f5f5f5;
+            color: #222;
+        }
 
-    <h1>🎬 Video Manager</h1>
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 16px;
+        }
 
-    <div class="row">
+        .card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
 
+        .thumbnail,
+        .empty-thumbnail {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            object-fit: cover;
+            display: block;
+            background: #222;
+        }
+
+        .empty-thumbnail {
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .body {
+            padding: 12px;
+        }
+
+        h5 {
+            margin: 0 0 8px;
+            word-break: break-word;
+        }
+
+        p {
+            margin: 6px 0;
+        }
+
+        button {
+            margin-top: 8px;
+            padding: 8px 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Video Manager</h1>
+
+    <h2>影片</h2>
+    <div class="grid">
         {% for video in videos %}
+        <div class="card">
+            {% if video.thumbnail %}
+            <img class="thumbnail" src="{{ video.thumbnail }}" alt="{{ video.name }} thumbnail">
+            {% else %}
+            <div class="empty-thumbnail">No thumbnail</div>
+            {% endif %}
 
-        <div class="col-md-4">
-
-            <div class="card mb-3">
-
-                <div class="card-body">
-
-                    <h5>{{ video.name }}</h5>
-
-                    <p>大小：{{ video.size }} MB</p>
-
-                    <p>日期：{{ video.date }}</p>
-
-                    <p> <a href="/reveal/{[video.name]}">
-                        <button>開啟檔案位置</button>
-                    </a>
-
-                </div>
-
+            <div class="body">
+                <h5>{{ video.name }}</h5>
+                <p>大小：{{ video.size }} MB</p>
+                <p>日期：{{ video.date }}</p>
+                <a href="/reveal/{{ video.name }}">
+                    <button>開啟檔案位置</button>
+                </a>
             </div>
-
         </div>
-
         {% endfor %}
-
     </div>
 
-</div>
+    <h2>圖片</h2>
+    <div class="grid">
+        {% for image in images %}
+        <div class="card">
+            <img class="thumbnail" src="{{ image.url }}" alt="{{ image.name }}">
+            <div class="body">
+                <h5>{{ image.name }}</h5>
+                <p>大小：{{ image.size }} MB</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
