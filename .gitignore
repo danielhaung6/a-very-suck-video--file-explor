@@ -1,5 +1,6 @@
 venv/
-__ptcache__
+__pycache__/
+*.py[cod]
 media/*.mp4
 media/*.mov
 media/*.mkv
