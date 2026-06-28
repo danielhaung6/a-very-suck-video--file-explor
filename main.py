@@ -17,10 +17,10 @@ MEDIA_DIR.mkdir(exist_ok=True)
 app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 app.mount("/templates", StaticFiles(directory="templates"), name="templates")
 
-ALLOWED_EXTENSIONS = {".mp4", ".mov", ".mkv", ".jpg", ".jpeg", ".png", ".webp"}
+ALLOWED_EXTENSIONS = {".mp4", ".mov", ".mkv", ".jpg", ".jpeg", ".png", ".webp", ".mp3"}
 
 
-def get_available_path(filename: str) -> Path:
+def get_available_path(filename: str) -> Path:   ##狀態顯示
     safe_name = Path(filename).name
     if not safe_name:
         raise HTTPException(status_code=400, detail="Invalid filename")
@@ -42,16 +42,18 @@ def get_available_path(filename: str) -> Path:
         counter += 1
 
 
-@app.get("/")
+@app.get("/") ##影片，照片，BGM
 async def home(request: Request):
 
     videos = []
     images = []
+    music = []
 
     for file in MEDIA_DIR.iterdir():
 
         if file.suffix.lower() in [".mp4", ".mov", ".mkv"]:
             thumbnail = None
+            music = None
 
             for image_suffix in [".jpg", ".jpeg", ".png", ".webp"]:
                 image_file = file.with_suffix(image_suffix)
@@ -74,6 +76,13 @@ async def home(request: Request):
                 "size": round(file.stat().st_size / 1024 /1024, 2),
                 "url": f"/media/{file.name}"
             })
+        
+        if file.suffix.lower() in [".mp3 "]:
+            music.append({
+                "name": file.name,
+                "size": round(file.stat().st_size / 1024 /1024 ,2),
+                "url": f"/media/{file.name}"
+            })
 
 
     return templates.TemplateResponse(
@@ -81,12 +90,13 @@ async def home(request: Request):
         name="index.html",
         context={
             "videos":videos,
-            "images": images
+            "images": images,
+            "music": music
         }
     )
 
 
-@app.post("/upload")
+@app.post("/upload") ##上傳檔案
 async def upload_files(files: list[UploadFile] = File(...)):
     for uploaded_file in files:
         target = get_available_path(uploaded_file.filename or "")
@@ -98,7 +108,7 @@ async def upload_files(files: list[UploadFile] = File(...)):
     return RedirectResponse(url="/", status_code=303)
 
 
-@app.get("/reveal/{filename}")
+@app.get("/reveal/{filename}") ##刪檔案
 async def reveal_file(filename:str):
 
     file_path = MEDIA_DIR / filename

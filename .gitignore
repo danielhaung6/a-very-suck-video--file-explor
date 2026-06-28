@@ -6,5 +6,6 @@ media/*.mov
 media/*.mkv
 media/*.jpg
 media/*.png
+media/*.mp3
 .agents/
 
