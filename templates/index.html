@@ -4,65 +4,41 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Video Manager</title>
-    <style>
-        body {
-            font-family: Arial, "Microsoft JhengHei", sans-serif;
-            margin: 32px;
-            background: #f5f5f5;
-            color: #222;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-            gap: 16px;
-        }
-
-        .card {
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        .thumbnail,
-        .empty-thumbnail {
-            width: 100%;
-            aspect-ratio: 16 / 9;
-            object-fit: cover;
-            display: block;
-            background: #222;
-        }
-
-        .empty-thumbnail {
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .body {
-            padding: 12px;
-        }
-
-        h5 {
-            margin: 0 0 8px;
-            word-break: break-word;
-        }
-
-        p {
-            margin: 6px 0;
-        }
-
-        button {
-            margin-top: 8px;
-            padding: 8px 10px;
-            cursor: pointer;
-        }
-    </style>
+    <link rel="stylesheet" href="/templates/style.css">
 </head>
+<script>
+    document.querySelectorAll(".delete-form").forEach(function (form) {
+        form.addEventListener("submit", function (event) {
+            event.preventDefault();
+
+            if (!confirm(form.dataset.confirm)) {
+                return;
+            }
+
+            const button = form.querySelector(".delete-button");
+            button.classList.add("success");
+
+            setTimeout(function () {
+                form.submit();
+            }, 400);
+        });
+    });
+</script>
 <body>
-    <h1>Video Manager</h1>
+    <div class="top-bar">
+        <h1>Video Manager</h1>
+
+        <form class="upload-form" action="/upload" method="post" enctype="multipart/form-data">
+            <input
+                type="file"
+                name="files"
+                accept=".mp4,.mov,.mkv,.jpg,.jpeg,.png,.webp"
+                multiple
+                required
+            >
+            <button type="submit">上傳檔案</button>
+        </form>
+    </div>
 
     <h2>影片</h2>
     <div class="grid">
@@ -78,9 +54,24 @@
                 <h5>{{ video.name }}</h5>
                 <p>大小：{{ video.size }} MB</p>
                 <p>日期：{{ video.date }}</p>
-                <a href="/reveal/{{ video.name }}">
-                    <button>開啟檔案位置</button>
+
+                <a class="effect-button" href="/reveal/{{ video.name }}">
+                    <span>開啟檔案位置</span>
                 </a>
+
+                
+
+            <form class="delete-form" action="/delete" method="post" data-confirm="確定要刪除嗎？">
+                <input type="hidden" name="filename" value="{{ video.name }}">
+
+                <button class="delete-button" type="submit">
+                    <span class="text">刪除</span>
+                    <span class="icon">
+                        <span class="remove-icon">×</span>
+                        <span class="check-icon">✓</span>
+                    </span>
+                </button>
+            </form>
             </div>
         </div>
         {% endfor %}
@@ -94,6 +85,19 @@
             <div class="body">
                 <h5>{{ image.name }}</h5>
                 <p>大小：{{ image.size }} MB</p>
+
+            <form class="delete-form" action="/delete" method="post" data-confirm="確定要刪除嗎？">
+                <input type="hidden" name="filename" value="{{ image.name }}">
+
+                <button class="delete-button" type="submit">
+                    <span class="text">刪除</span>
+                    <span class="icon">
+                        <span class="remove-icon">×</span>
+                        <span class="check-icon">✓</span>
+                    </span>
+                </button>
+            </form>
+                </form>
             </div>
         </div>
         {% endfor %}

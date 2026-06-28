@@ -1,8 +1,9 @@
 import subprocess
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
+
 
 from pathlib import Path
 from datetime import datetime
@@ -12,7 +13,33 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 MEDIA_DIR = Path("media")
+MEDIA_DIR.mkdir(exist_ok=True)
 app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
+app.mount("/templates", StaticFiles(directory="templates"), name="templates")
+
+ALLOWED_EXTENSIONS = {".mp4", ".mov", ".mkv", ".jpg", ".jpeg", ".png", ".webp"}
+
+
+def get_available_path(filename: str) -> Path:
+    safe_name = Path(filename).name
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    target = MEDIA_DIR / safe_name
+    if target.suffix.lower() not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+
+    if not target.exists():
+        return target
+
+    stem = target.stem
+    suffix = target.suffix
+    counter = 1
+    while True:
+        candidate = MEDIA_DIR / f"{stem}_{counter}{suffix}"
+        if not candidate.exists():
+            return candidate
+        counter += 1
 
 
 @app.get("/")
@@ -57,6 +84,20 @@ async def home(request: Request):
             "images": images
         }
     )
+
+
+@app.post("/upload")
+async def upload_files(files: list[UploadFile] = File(...)):
+    for uploaded_file in files:
+        target = get_available_path(uploaded_file.filename or "")
+
+        with target.open("wb") as output:
+            while chunk := await uploaded_file.read(1024 * 1024):
+                output.write(chunk)
+
+    return RedirectResponse(url="/", status_code=303)
+
+
 @app.get("/reveal/{filename}")
 async def reveal_file(filename:str):
 
@@ -72,4 +113,12 @@ async def reveal_file(filename:str):
 
         return RedirectResponse(url="/")
     return{"success":False}
+@app.post("/delete")
+async def delete_file(filename: str = Form(...)):
+    file_patch = MEDIA_DIR / Path(filename).name
 
+    if file_patch.exists() and file_patch.is_file():
+        file_patch.unlink()
+
+
+    return RedirectResponse(url="/", status_code=303)
