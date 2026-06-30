@@ -91,8 +91,7 @@ async def home(request: Request):
             "videos":videos,
             "images": images,
             "musics": musics
-        }
-    )
+        })
 
 
 @app.post("/upload") ##上傳檔案
