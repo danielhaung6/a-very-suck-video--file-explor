@@ -6,24 +6,6 @@
     <title>Video Manager</title>
     <link rel="stylesheet" href="/templates/style.css">
 </head>
-<script>
-    document.querySelectorAll(".delete-form").forEach(function (form) {
-        form.addEventListener("submit", function (event) {
-            event.preventDefault();
-
-            if (!confirm(form.dataset.confirm)) {
-                return;
-            }
-
-            const button = form.querySelector(".delete-button");
-            button.classList.add("success");
-
-            setTimeout(function () {
-                form.submit();
-            }, 400);
-        });
-    });
-</script>
 <body>
     <div class="top-bar">
         <h1>Video Manager</h1>
@@ -59,19 +41,16 @@
                     <span>開啟檔案位置</span>
                 </a>
 
-                
-
-            <form class="delete-form" action="/delete" method="post" data-confirm="確定要刪除嗎？">
-                <input type="hidden" name="filename" value="{{ video.name }}">
-
-                <button class="delete-button" type="submit">
-                    <span class="text">刪除</span>
-                    <span class="icon">
-                        <span class="remove-icon">×</span>
-                        <span class="check-icon">✓</span>
-                    </span>
-                </button>
-            </form>
+                <form class="delete-form" action="/delete" method="post" data-confirm="確定要刪除這個檔案嗎？">
+                    <input type="hidden" name="filename" value="{{ video.name }}">
+                    <button class="delete-button" type="submit">
+                        <span class="text">刪除</span>
+                        <span class="icon">
+                            <span class="remove-icon">X</span>
+                            <span class="check-icon">OK</span>
+                        </span>
+                    </button>
+                </form>
             </div>
         </div>
         {% endfor %}
@@ -86,28 +65,65 @@
                 <h5>{{ image.name }}</h5>
                 <p>大小：{{ image.size }} MB</p>
 
-            <form class="delete-form" action="/delete" method="post" data-confirm="確定要刪除嗎？">
-                <input type="hidden" name="filename" value="{{ image.name }}">
-
-                <button class="delete-button" type="submit">
-                    <span class="text">刪除</span>
-                    <span class="icon">
-                        <span class="remove-icon">×</span>
-                        <span class="check-icon">✓</span>
-                    </span>
-                </button>
-            </form>
+                <form class="delete-form" action="/delete" method="post" data-confirm="確定要刪除這個檔案嗎？">
+                    <input type="hidden" name="filename" value="{{ image.name }}">
+                    <button class="delete-button" type="submit">
+                        <span class="text">刪除</span>
+                        <span class="icon">
+                            <span class="remove-icon">X</span>
+                            <span class="check-icon">OK</span>
+                        </span>
+                    </button>
                 </form>
             </div>
         </div>
         {% endfor %}
     </div>
+
     <h2>音樂</h2>
     <div class="grid">
-        {% for image in images %}
+        {% for music in musics %}
         <div class="card">
-            
+            <div class="body">
+                <h5>{{ music.name }}</h5>
+                <p>大小：{{ music.size }} MB</p>
+
+                <a class="effect-button" href="/reveal/{{ music.name }}">
+                    <span>開啟檔案位置</span>
+                </a>
+
+                <form class="delete-form" action="/delete" method="post" data-confirm="確定要刪除這個檔案嗎？">
+                    <input type="hidden" name="filename" value="{{ music.name }}">
+                    <button class="delete-button" type="submit">
+                        <span class="text">刪除</span>
+                        <span class="icon">
+                            <span class="remove-icon">X</span>
+                            <span class="check-icon">OK</span>
+                        </span>
+                    </button>
+                </form>
+            </div>
         </div>
+        {% endfor %}
     </div>
+
+    <script>
+        document.querySelectorAll(".delete-form").forEach(function (form) {
+            form.addEventListener("submit", function (event) {
+                event.preventDefault();
+
+                if (!confirm(form.dataset.confirm)) {
+                    return;
+                }
+
+                const button = form.querySelector(".delete-button");
+                button.classList.add("success");
+
+                setTimeout(function () {
+                    form.submit();
+                }, 400);
+            });
+        });
+    </script>
 </body>
 </html>

@@ -47,13 +47,12 @@ async def home(request: Request):
 
     videos = []
     images = []
-    music = []
+    musics = []
 
     for file in MEDIA_DIR.iterdir():
 
         if file.suffix.lower() in [".mp4", ".mov", ".mkv"]:
             thumbnail = None
-            music = None
 
             for image_suffix in [".jpg", ".jpeg", ".png", ".webp"]:
                 image_file = file.with_suffix(image_suffix)
@@ -77,8 +76,8 @@ async def home(request: Request):
                 "url": f"/media/{file.name}"
             })
         
-        if file.suffix.lower() in [".mp3 "]:
-            music.append({
+        if file.suffix.lower() in [".mp3"]:
+            musics.append({
                 "name": file.name,
                 "size": round(file.stat().st_size / 1024 /1024 ,2),
                 "url": f"/media/{file.name}"
@@ -91,7 +90,7 @@ async def home(request: Request):
         context={
             "videos":videos,
             "images": images,
-            "music": music
+            "musics": musics
         }
     )
 
