@@ -68,6 +68,25 @@ p {
     margin: 6px 0;
 }
 
+.bgm-form {
+    display: grid;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.bgm-form label {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.bgm-form select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #888;
+    border-radius: 5px;
+    background: #fff;
+}
+
 button {
     margin-top: 8px;
     padding: 8px 10px;

@@ -37,6 +37,19 @@
                 <p>大小：{{ video.size }} MB</p>
                 <p>日期：{{ video.date }}</p>
 
+                <form class="bgm-form" action="/assign-bgm" method="post">
+                    <input type="hidden" name="video_name" value="{{ video.name }}">
+                    <label for="bgm-{{ loop.index }}">BGM</label>
+                    <select id="bgm-{{ loop.index }}" name="bgm_name" onchange="this.form.submit()">
+                        <option value="">未選擇</option>
+                        {% for music in musics %}
+                        <option value="{{ music.name }}" {% if video.bgm == music.name %}selected{% endif %}>
+                            {{ music.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </form>
+
                 <a class="effect-button" href="/reveal/{{ video.name }}">
                     <span>開啟檔案位置</span>
                 </a>
