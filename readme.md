@@ -10,6 +10,7 @@ python -m venv venv
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 python -m uvicorn main:app --reload
+python -m uvicorn main:app --reload --host 127.0.0.1 --port 8001
 ```
 
 打開：
