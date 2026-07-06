@@ -8,4 +8,5 @@ media/*.jpg
 media/*.png
 media/*.mp3
 .agents/
+bgm_map.json
 
