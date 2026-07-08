@@ -159,7 +159,6 @@ async def assign_bgm(
         bgm_map[safe_video_name] = safe_bgm_name
     else:
         bgm_map.pop(safe_video_name, None)
-
     save_bgm_map(bgm_map)
     return RedirectResponse(url="/", status_code=303)
 
