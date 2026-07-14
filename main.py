@@ -1,197 +1,243 @@
-import json
-import subprocess
+import io
+import os
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse
-
-
-from pathlib import Path
-from datetime import datetime
+from google.oauth2 import credentials as user_credentials
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 
 app = FastAPI()
-
 templates = Jinja2Templates(directory="templates")
-
-MEDIA_DIR = Path("media")
-BGM_MAP_FILE = Path("bgm_map.json")
-MEDIA_DIR.mkdir(exist_ok=True)
-app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 app.mount("/templates", StaticFiles(directory="templates"), name="templates")
 
+SCOPES = ["https://www.googleapis.com/auth/drive"]
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".mkv", ".jpg", ".jpeg", ".png", ".webp", ".mp3"}
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv"}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
-def load_bgm_map() -> dict[str, str]:
-    if not BGM_MAP_FILE.exists():
-        return {}
+def drive_folder_id() -> str:
+    folder_id = os.getenv("DRIVE_FOLDER_ID")
+    if not folder_id:
+        raise HTTPException(
+            status_code=503,
+            detail="Google Drive is not configured. Set DRIVE_FOLDER_ID.",
+        )
+    return folder_id
+
+
+def get_drive():
+    """Create a Drive client from either user OAuth or a service-account credential."""
+    refresh_token = os.getenv("GOOGLE_REFRESH_TOKEN")
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+    if refresh_token and client_id and client_secret:
+        credentials = user_credentials.Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=SCOPES,
+        )
+        return build("drive", "v3", credentials=credentials, cache_discovery=False)
+
+    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    if not credentials_path:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Google Drive is not configured. Set GOOGLE_CLIENT_ID, "
+                "GOOGLE_CLIENT_SECRET and GOOGLE_REFRESH_TOKEN, or "
+                "GOOGLE_APPLICATION_CREDENTIALS."
+            ),
+        )
 
     try:
-        with BGM_MAP_FILE.open("r", encoding="utf-8") as file:
-            data = json.load(file)
-    except json.JSONDecodeError:
-        return {}
-
-    if not isinstance(data, dict):
-        return {}
-
-    return {
-        str(video_name): str(bgm_name)
-        for video_name, bgm_name in data.items()
-    }
+        credentials = service_account.Credentials.from_service_account_file(
+            credentials_path, scopes=SCOPES
+        )
+    except (OSError, ValueError) as error:
+        raise HTTPException(status_code=503, detail="Unable to load Google Drive credentials.") from error
+    return build("drive", "v3", credentials=credentials, cache_discovery=False)
 
 
-def save_bgm_map(bgm_map: dict[str, str]) -> None:
-    with BGM_MAP_FILE.open("w", encoding="utf-8") as file:
-        json.dump(bgm_map, file, ensure_ascii=False, indent=2)
+def extension(name: str) -> str:
+    return Path(name).suffix.lower()
 
 
-def get_available_path(filename: str) -> Path:   ##狀態顯示
-    safe_name = Path(filename).name
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid filename")
-
-    target = MEDIA_DIR / safe_name
-    if target.suffix.lower() not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Unsupported file type")
-
-    if not target.exists():
-        return target
-
-    stem = target.stem
-    suffix = target.suffix
-    counter = 1
-    while True:
-        candidate = MEDIA_DIR / f"{stem}_{counter}{suffix}"
-        if not candidate.exists():
-            return candidate
-        counter += 1
+def file_category(name: str) -> str | None:
+    suffix = extension(name)
+    if suffix in VIDEO_EXTENSIONS:
+        return "video"
+    if suffix in IMAGE_EXTENSIONS:
+        return "image"
+    if suffix == ".mp3":
+        return "music"
+    return None
 
 
-@app.get("/") ##影片，照片，BGM
+def list_drive_files() -> list[dict[str, Any]]:
+    drive = get_drive()
+    response = drive.files().list(
+        q=f"'{drive_folder_id()}' in parents and trashed = false",
+        spaces="drive",
+        fields="nextPageToken, files(id, name, size, modifiedTime, mimeType, appProperties)",
+        pageSize=1000,
+        orderBy="modifiedTime desc",
+        supportsAllDrives=True,
+        includeItemsFromAllDrives=True,
+    ).execute()
+    files = response.get("files", [])
+    while response.get("nextPageToken"):
+        response = drive.files().list(
+            q=f"'{drive_folder_id()}' in parents and trashed = false",
+            spaces="drive",
+            fields="nextPageToken, files(id, name, size, modifiedTime, mimeType, appProperties)",
+            pageSize=1000,
+            orderBy="modifiedTime desc",
+            pageToken=response["nextPageToken"],
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
+        ).execute()
+        files.extend(response.get("files", []))
+    return files
+
+
+def get_drive_file(file_id: str) -> dict[str, Any]:
+    drive = get_drive()
+    try:
+        item = drive.files().get(
+            fileId=file_id,
+            fields="id,name,size,modifiedTime,mimeType,appProperties,parents",
+            supportsAllDrives=True,
+        ).execute()
+    except Exception as error:
+        raise HTTPException(status_code=404, detail="File not found.") from error
+    if drive_folder_id() not in item.get("parents", []):
+        raise HTTPException(status_code=404, detail="File not found.")
+    return item
+
+
+@app.get("/")
 async def home(request: Request):
-
-    videos = []
-    images = []
-    musics = []
-    bgm_map = load_bgm_map()
-
-    for file in MEDIA_DIR.iterdir():
-
-        if file.suffix.lower() in [".mp4", ".mov", ".mkv"]:
-            thumbnail = None
-
-            for image_suffix in [".jpg", ".jpeg", ".png", ".webp"]:
-                image_file = file.with_suffix(image_suffix)
-                if image_file.exists():
-                    thumbnail = f"/media/{image_file.name}"
-                    break
-
-            videos.append({
-                "name": file.name,
-                "size": round(file.stat().st_size / 1024 / 1024, 2),
-                "date": datetime.fromtimestamp(
-                    file.stat().st_mtime
-                ).strftime("%Y-%m-%d"),
-                "thumbnail": thumbnail,
-                "bgm": bgm_map.get(file.name, "")
-            })
-
-        if file.suffix.lower() in [".jpg", ".jpeg", ".png", ".webp"]:
-            images.append({
-                "name": file.name,
-                "size": round(file.stat().st_size / 1024 /1024, 2),
-                "url": f"/media/{file.name}"
-            })
-        
-        if file.suffix.lower() in [".mp3"]:
-            musics.append({
-                "name": file.name,
-                "size": round(file.stat().st_size / 1024 /1024 ,2),
-                "url": f"/media/{file.name}"
-            })
-
+    files = await run_in_threadpool(list_drive_files)
+    videos, images, musics = [], [], []
+    for item in files:
+        category = file_category(item["name"])
+        if not category:
+            continue
+        common = {
+            "id": item["id"],
+            "name": item["name"],
+            "size": round(int(item.get("size", 0)) / 1024 / 1024, 2),
+            "date": datetime.fromisoformat(item["modifiedTime"].replace("Z", "+00:00")).strftime("%Y-%m-%d"),
+        }
+        if category == "video":
+            common["thumbnail"] = None
+            common["bgm_id"] = item.get("appProperties", {}).get("video_manager_bgm_id", "")
+            videos.append(common)
+        elif category == "image":
+            common["url"] = f"/drive/files/{item['id']}/content"
+            images.append(common)
+        else:
+            common["url"] = f"/drive/files/{item['id']}/content"
+            musics.append(common)
 
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={
-            "videos":videos,
-            "images": images,
-            "musics": musics
-        })
+        context={"videos": videos, "images": images, "musics": musics},
+    )
 
 
-@app.post("/upload") ##上傳檔案
+@app.post("/upload")
 async def upload_files(files: list[UploadFile] = File(...)):
+    def upload_one(uploaded_file: UploadFile) -> None:
+        name = Path(uploaded_file.filename or "").name
+        if not name or extension(name) not in ALLOWED_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"Unsupported file type: {name}")
+        uploaded_file.file.seek(0)
+        media = MediaIoBaseUpload(
+            uploaded_file.file,
+            mimetype=uploaded_file.content_type or "application/octet-stream",
+            resumable=True,
+        )
+        get_drive().files().create(
+            body={"name": name, "parents": [drive_folder_id()]},
+            media_body=media,
+            fields="id",
+            supportsAllDrives=True,
+        ).execute()
+
     for uploaded_file in files:
-        target = get_available_path(uploaded_file.filename or "")
-
-        with target.open("wb") as output:
-            while chunk := await uploaded_file.read(1024 * 1024):
-                output.write(chunk)
-
+        await run_in_threadpool(upload_one, uploaded_file)
     return RedirectResponse(url="/", status_code=303)
 
 
 @app.post("/assign-bgm")
-async def assign_bgm(
-    video_name: str = Form(...),
-    bgm_name: str = Form("")
-):
-    safe_video_name = Path(video_name).name
-    safe_bgm_name = Path(bgm_name).name
-    video_path = MEDIA_DIR / safe_video_name
+async def assign_bgm(video_id: str = Form(...), bgm_id: str = Form("")):
+    video = await run_in_threadpool(get_drive_file, video_id)
+    if file_category(video["name"]) != "video":
+        raise HTTPException(status_code=400, detail="Invalid video.")
+    if bgm_id:
+        music = await run_in_threadpool(get_drive_file, bgm_id)
+        if file_category(music["name"]) != "music":
+            raise HTTPException(status_code=400, detail="Invalid BGM.")
 
-    if (
-        not video_path.exists()
-        or video_path.suffix.lower() not in [".mp4", ".mov", ".mkv"]
-    ):
-        raise HTTPException(status_code=400, detail="Invalid video")
+    def update_bgm() -> None:
+        properties = video.get("appProperties", {}).copy()
+        if bgm_id:
+            properties["video_manager_bgm_id"] = bgm_id
+        else:
+            properties.pop("video_manager_bgm_id", None)
+        get_drive().files().update(
+            fileId=video_id,
+            body={"appProperties": properties},
+            supportsAllDrives=True,
+        ).execute()
 
-    bgm_map = load_bgm_map()
-
-    if safe_bgm_name:
-        bgm_path = MEDIA_DIR / safe_bgm_name
-        if not bgm_path.exists() or bgm_path.suffix.lower() != ".mp3":
-            raise HTTPException(status_code=400, detail="Invalid BGM")
-
-        bgm_map[safe_video_name] = safe_bgm_name
-    else:
-        bgm_map.pop(safe_video_name, None)
-    save_bgm_map(bgm_map)
+    await run_in_threadpool(update_bgm)
     return RedirectResponse(url="/", status_code=303)
 
 
-@app.get("/reveal/{filename}") ##刪檔案
-async def reveal_file(filename:str):
+@app.get("/drive/files/{file_id}/content")
+async def download_file(file_id: str):
+    item = await run_in_threadpool(get_drive_file, file_id)
 
-    file_path = MEDIA_DIR / filename
+    def fetch():
+        request = get_drive().files().get_media(fileId=file_id, supportsAllDrives=True)
+        output = io.BytesIO()
+        downloader = MediaIoBaseDownload(output, request, chunksize=4 * 1024 * 1024)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+            output.seek(0)
+            chunk = output.read()
+            output.seek(0)
+            output.truncate(0)
+            if chunk:
+                yield chunk
 
-    if file_path.exists():
+    return StreamingResponse(
+        fetch(),
+        media_type=item.get("mimeType") or "application/octet-stream",
+        headers={"Content-Disposition": f'inline; filename="{item["name"]}"'},
+    )
 
-        subprocess.run([
-            "explorer",
-            "/select,",
-            str(file_path.resolve())
-        ])
 
-        return RedirectResponse(url="/")
-    return{"success":False}
 @app.post("/delete")
-async def delete_file(filename: str = Form(...)):
-    file_patch = MEDIA_DIR / Path(filename).name
-
-    if file_patch.exists() and file_patch.is_file():
-        bgm_map = load_bgm_map()
-        bgm_map.pop(file_patch.name, None)
-
-        for video_name, bgm_name in list(bgm_map.items()):
-            if bgm_name == file_patch.name:
-                bgm_map.pop(video_name, None)
-
-        save_bgm_map(bgm_map)
-        file_patch.unlink()
-
-
+async def delete_file(file_id: str = Form(...)):
+    await run_in_threadpool(get_drive_file, file_id)
+    await run_in_threadpool(
+        lambda: get_drive().files().delete(fileId=file_id, supportsAllDrives=True).execute()
+    )
     return RedirectResponse(url="/", status_code=303)
