@@ -12,7 +12,7 @@
 
 ```powershell
 pip install -r requirements.txt
-python get_refresh_token.py C:\secure\oauth-client.json
+python get_refresh_token.py C:\Users\daniel\Downloads\oauth-client.json
 ```
 
 若 OAuth 同意畫面維持在「測試」狀態，refresh token 通常會在 7 天後失效；長期部署前請在 Google Cloud 的 OAuth 同意畫面把你的帳號加入測試使用者，並依 Google 的要求發布應用程式。
