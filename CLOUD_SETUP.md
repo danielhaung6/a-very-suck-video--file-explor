@@ -31,7 +31,7 @@
 
 ## 1. Google Drive
 
-1. 到 <https://console.cloud.google.com/apis/credentials>
+1. 到 [https://console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials)
 2. 「建立憑證」→「OAuth 用戶端 ID」→ 應用程式類型選 **網頁應用程式**
 3. 授權重新導向 URI 加入：
    - `http://127.0.0.1:8000/cloud/google/callback`
@@ -42,11 +42,11 @@
 
 ## 2. OneDrive (Microsoft)
 
-1. 到 <https://portal.azure.com> → 搜尋 **App registrations**（應用程式註冊）
+1. 到 [https://portal.azure.com](https://portal.azure.com) → 搜尋 **App registrations**（應用程式註冊) 前提是你得先註冊Azure你才能登入
 2. 「New registration」：
    - 名稱隨意
    - 支援帳戶類型選「Personal Microsoft accounts + organizational directory」
-   - Redirect URI：平台 **Web**，URI 填 `http://127.0.0.1:8000/cloud/onedrive/callback`
+   - Redirect URI：平台 **Web**，URI 填 `http://localhost:8000/cloud/onedrive/callback`
 3. 建立後到 **Certificates & secrets** → 新增 **Client secret**（密碼），複製下來（只顯示一次）
 4. 到 **API permissions** → Add a permission → **Microsoft Graph** → Delegated → 勾 `Files.ReadWrite`、`offline_access`
 5. 把 **Application (client) ID** 和 secret 填入 `cloud_config.json` 的 `onedrive`
@@ -57,7 +57,7 @@
 
 ## 3. Dropbox
 
-1. 到 <https://www.dropbox.com/developers/apps>
+1. 到 [https://www.dropbox.com/developers/apps](https://www.dropbox.com/developers/apps)
 2. 「Create app」→ 選擇 **Scoped access** → 資料夾權限選「App folder」或「Full Dropbox」都可以
 3. 在 **Permissions** 勾選：`files.content.read`、`files.content.write`、`account_info.read`
 4. 在 **OAuth 2** → Redirect URIs 填入 `http://127.0.0.1:8000/cloud/dropbox/callback`
@@ -71,7 +71,7 @@
 .\venv\Scripts\python.exe -m uvicorn main:app --reload
 ```
 
-開 <http://127.0.0.1:8000/cloud> → 切到要用的服務 → 「連結帳號」→ 瀏覽器跳出登入畫面，授權完就會自動跳回。
+開 [http://127.0.0.1:8000/cloud](http://127.0.0.1:8000/cloud) → 切到要用的服務 → 「連結帳號」→ 瀏覽器跳出登入畫面，授權完就會自動跳回。
 
 - 影片 / 音樂直接在頁面上播放（透過本機 proxy 串流，支援跳轉）。
 - 圖片顯示縮圖。
