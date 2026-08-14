@@ -133,7 +133,15 @@ def get_drive_file(file_id: str) -> dict[str, Any]:
 
 @app.get("/")
 async def home(request: Request):
-    files = await run_in_threadpool(list_drive_files)
+    drive_error = ""
+    try:
+        files = await run_in_threadpool(list_drive_files)
+    except HTTPException as error:
+        if error.status_code != 503:
+            raise
+        files = []
+        drive_error = str(error.detail)
+
     videos, images, musics = [], [], []
     for item in files:
         category = file_category(item["name"])
@@ -159,7 +167,12 @@ async def home(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={"videos": videos, "images": images, "musics": musics},
+        context={
+            "videos": videos,
+            "images": images,
+            "musics": musics,
+            "drive_error": drive_error,
+        },
     )
 
 
