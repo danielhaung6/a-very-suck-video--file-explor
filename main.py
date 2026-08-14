@@ -14,7 +14,11 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 
+from cloud.router import router as cloud_router
+
 app = FastAPI()
+app.include_router(cloud_router)
+
 templates = Jinja2Templates(directory="templates")
 app.mount("/templates", StaticFiles(directory="templates"), name="templates")
 

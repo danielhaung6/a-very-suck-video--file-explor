@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Video Manager - 雲端</title>
+    <link rel="stylesheet" href="/templates/style.css">
+    <style>
+        .tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 12px 0;
+        }
+        .tabs a {
+            padding: 8px 14px;
+            border: 1px solid #8884;
+            border-radius: 6px;
+            text-decoration: none;
+            color: #222;
+            background: #f5f5f5;
+        }
+        .tabs a.active {
+            background: #2563eb;
+            color: #fff;
+            border-color: #2563eb;
+        }
+        .provider-actions {
+            display: flex;
+            gap: 8px;
+            margin: 12px 0;
+            flex-wrap: wrap;
+        }
+        .error {
+            color: #b91c1c;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 6px;
+            padding: 10px 12px;
+        }
+        .player {
+            width: 100%;
+            max-height: 180px;
+            object-fit: contain;
+            background: #000;
+        }
+        .player-img {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+        }
+        .media-body h5 {
+            margin: 8px 0 4px;
+        }
+        .media-body p {
+            margin: 2px 0;
+            font-size: 13px;
+            color: #555;
+        }
+        .breadcrumb a {
+            color: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <h1>Video Manager</h1>
+
+        <nav class="tabs">
+            <a href="/">本機</a>
+            {% for p in providers %}
+            <a href="/cloud?provider={{ p.name }}" class="{{ 'active' if p.name == active.name }}">
+                {{ p.display }}{% if p.linked %}（已連結）{% endif %}
+            </a>
+            {% endfor %}
+        </nav>
+
+        {% if active.configured and active.linked %}
+        <form class="upload-form" action="/cloud/{{ active.name }}/upload" method="post" enctype="multipart/form-data">
+            <input type="hidden" name="folder" value="{{ folder }}">
+            <input
+                type="file"
+                name="files"
+                accept=".mp4,.mov,.mkv,.jpg,.jpeg,.png,.webp,.mp3"
+                multiple
+                required
+            >
+            <button type="submit">上傳到 {{ active.display }}</button>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if not active.configured %}
+        <div class="error">
+            <p>{{ active.display }} 尚未設定。</p>
+            <p>請在 <code>cloud_config.json</code> 填入 client_id / client_secret，步驟見 <code>CLOUD_SETUP.md</code>。</p>
+        </div>
+    {% elif not active.linked %}
+        <div class="provider-actions">
+            <a class="effect-button" href="/cloud/{{ active.name }}/auth">
+                <span>連結 {{ active.display }} 帳號</span>
+            </a>
+        </div>
+    {% else %}
+        <div class="provider-actions">
+            <a class="effect-button" href="/cloud/{{ active.name }}/logout">
+                <span>登出</span>
+            </a>
+            {% if folder %}
+            <a class="effect-button" href="/cloud?provider={{ active.name }}">
+                <span>回到根目錄</span>
+            </a>
+            {% endif %}
+        </div>
+
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+
+        <div class="grid">
+            {% for item in files %}
+            <div class="card">
+                {% if item.kind == "folder" %}
+                    <div class="empty-thumbnail">資料夾</div>
+                    <div class="media-body">
+                        <h5><a class="breadcrumb" href="{{ item.folder_url }}">{{ item.name }}</a></h5>
+                    </div>
+                {% elif item.kind == "video" %}
+                    <video class="player" src="{{ item.stream_url }}" controls preload="metadata"></video>
+                    <div class="media-body">
+                        <h5>{{ item.name }}</h5>
+                        <p>大小：{{ item.size_mb }} MB</p>
+                    </div>
+                {% elif item.kind == "image" %}
+                    <img class="player-img" src="{{ item.thumb_url or item.stream_url }}" alt="{{ item.name }}">
+                    <div class="media-body">
+                        <h5>{{ item.name }}</h5>
+                        <p>大小：{{ item.size_mb }} MB</p>
+                    </div>
+                {% elif item.kind == "audio" %}
+                    <audio class="player" src="{{ item.stream_url }}" controls></audio>
+                    <div class="media-body">
+                        <h5>{{ item.name }}</h5>
+                        <p>大小：{{ item.size_mb }} MB</p>
+                    </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <p>（此資料夾沒有可顯示的檔案）</p>
+            {% endfor %}
+        </div>
+    {% endif %}
+</body>
+</html>

@@ -9,6 +9,11 @@
 <body>
     <div class="top-bar">
         <h1>影片管理器</h1>
+
+        <a class="effect-button" href="/cloud" style="margin-right: 12px;">
+            <span>雲端</span>
+        </a>
+
         <form class="upload-form" action="/upload" method="post" enctype="multipart/form-data">
             <input type="file" name="files" accept=".mp4,.mov,.mkv,.jpg,.jpeg,.png,.webp,.mp3" multiple required>
             <button type="submit">上傳至 Google Drive</button>
