@@ -14,6 +14,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 
+from cloud import config as cloud_config
 from cloud.router import router as cloud_router
 
 app = FastAPI()
@@ -29,11 +30,12 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 def drive_folder_id() -> str:
-    folder_id = os.getenv("DRIVE_FOLDER_ID")
+    google_config = cloud_config.load_config().get("google", {})
+    folder_id = os.getenv("DRIVE_FOLDER_ID") or google_config.get("folder_id")
     if not folder_id:
         raise HTTPException(
             status_code=503,
-            detail="Google Drive is not configured. Set DRIVE_FOLDER_ID.",
+            detail="Google Drive folder is not configured.",
         )
     return folder_id
 
@@ -43,6 +45,12 @@ def get_drive():
     refresh_token = os.getenv("GOOGLE_REFRESH_TOKEN")
     client_id = os.getenv("GOOGLE_CLIENT_ID")
     client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+    if not (refresh_token and client_id and client_secret):
+        google_config = cloud_config.load_config().get("google", {})
+        google_tokens = cloud_config.load_tokens().get("google", {})
+        refresh_token = refresh_token or google_tokens.get("refresh_token")
+        client_id = client_id or google_config.get("client_id")
+        client_secret = client_secret or google_config.get("client_secret")
     if refresh_token and client_id and client_secret:
         credentials = user_credentials.Credentials(
             token=None,
@@ -61,7 +69,7 @@ def get_drive():
             detail=(
                 "Google Drive is not configured. Set GOOGLE_CLIENT_ID, "
                 "GOOGLE_CLIENT_SECRET and GOOGLE_REFRESH_TOKEN, or "
-                "GOOGLE_APPLICATION_CREDENTIALS."
+                "GOOGLE_APPLICATION_CREDENTIALS, or link Google Drive at /cloud."
             ),
         )
 
