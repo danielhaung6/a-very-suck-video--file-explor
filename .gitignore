@@ -9,7 +9,4 @@ media/*.png
 media/*.mp3
 .agents/
 bgm_map.json
-cloud_config.json
-cloud_tokens.json
-__pycache__/
 

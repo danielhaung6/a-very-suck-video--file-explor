@@ -9,10 +9,7 @@ from fastapi.responses import RedirectResponse
 from pathlib import Path
 from datetime import datetime
 
-from cloud.router import router as cloud_router
-
 app = FastAPI()
-app.include_router(cloud_router)
 
 templates = Jinja2Templates(directory="templates")
 
