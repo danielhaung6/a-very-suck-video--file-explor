@@ -16,7 +16,14 @@ PROVIDER_NAMES = ("google", "onedrive", "dropbox")
 
 
 def _redirect_uri(request: Request, provider: str) -> str:
-    return str(request.base_url).rstrip("/") + f"/cloud/{provider}/callback"
+    base_url = str(request.base_url).rstrip("/")
+    if provider == "onedrive":
+        parsed = urllib.parse.urlsplit(base_url)
+        port = f":{parsed.port}" if parsed.port else ""
+        base_url = urllib.parse.urlunsplit(
+            (parsed.scheme, f"localhost{port}", parsed.path, "", "")
+        ).rstrip("/")
+    return base_url + f"/cloud/{provider}/callback"
 
 
 def _provider_info(name: str) -> dict:
