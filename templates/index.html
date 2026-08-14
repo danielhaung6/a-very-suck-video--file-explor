@@ -14,12 +14,18 @@
             <span>雲端</span>
         </a>
 
+        {% if not drive_error %}
         <form class="upload-form" action="/upload" method="post" enctype="multipart/form-data">
             <input type="file" name="files" accept=".mp4,.mov,.mkv,.jpg,.jpeg,.png,.webp,.mp3" multiple required>
             <button type="submit">上傳至 Google Drive</button>
         </form>
+        {% endif %}
     </div>
+    {% if drive_error %}
+    <p class="storage-note">Google Drive 尚未設定。請設定環境變數，或前往 <a href="/cloud">雲端儲存</a> 連結帳號。</p>
+    {% else %}
     <p class="storage-note">所有媒體檔直接儲存在 Google Drive。</p>
+    {% endif %}
 
     <h2>影片</h2>
     <div class="grid">
