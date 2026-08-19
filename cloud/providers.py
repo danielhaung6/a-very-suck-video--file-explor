@@ -158,6 +158,7 @@ class GoogleProvider(CloudProvider):
             result.append(
                 {
                     "name": f["name"],
+                    "file_id": f["id"],
                     "kind": kind,
                     "size_mb": round(size, 2),
                     "date": "",
@@ -270,6 +271,7 @@ class OneDriveProvider(CloudProvider):
             result.append(
                 {
                     "name": name,
+                    "file_id": item["id"],
                     "kind": kind,
                     "size_mb": round(size, 2),
                     "date": item.get("lastModifiedDateTime", "")[:10],
@@ -382,6 +384,7 @@ class DropboxProvider(CloudProvider):
             result.append(
                 {
                     "name": name,
+                    "file_id": path_lower,
                     "kind": kind,
                     "size_mb": round(size, 2),
                     "date": "",
