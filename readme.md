@@ -61,3 +61,7 @@ $env:GOOGLE_REFRESH_TOKEN = "你的 OAuth refresh token"
 $env:DRIVE_FOLDER_ID = "你的資料夾ID"
 python -m uvicorn main:app --reload
 ```
+
+## 指定影片縮圖
+
+先把影片與要使用的圖片上傳到同一個首頁儲存空間或雲端資料夾。每張影片卡片都有「縮圖」選單；選取圖片後會立即儲存並顯示為該影片的縮圖，也可以選擇「無縮圖」取消指定。

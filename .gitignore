@@ -9,6 +9,7 @@ media/*.png
 media/*.mp3
 .agents/
 bgm_map.json
+thumbnail_map.json
 service-account.json
 .env
 cloud_config.json

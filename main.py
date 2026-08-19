@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from cloud.router import router as cloud_router
+from thumbnail_map import load_thumbnail_map, save_thumbnail_map
 
 app = FastAPI()
 app.include_router(cloud_router)
@@ -68,6 +69,7 @@ async def home(request: Request):
     images = []
     musics = []
     bgm_map = load_bgm_map()
+    thumbnail_map = load_thumbnail_map()
 
     for file in sorted(MEDIA_DIR.iterdir(), key=lambda item: item.name.casefold()):
         if not file.is_file():
@@ -79,19 +81,27 @@ async def home(request: Request):
             "size": round(file.stat().st_size / 1024 / 1024, 2),
         }
         if suffix in VIDEO_EXTENSIONS:
-            thumbnail = next(
-                (
-                    f"/media/{file.with_suffix(image_suffix).name}"
-                    for image_suffix in IMAGE_EXTENSIONS
-                    if file.with_suffix(image_suffix).exists()
-                ),
-                None,
+            assigned_thumbnail = thumbnail_map.get(f"home:{file.name}", "")
+            assigned_path = MEDIA_DIR / Path(assigned_thumbnail).name
+            thumbnail = (
+                f"/media/{assigned_path.name}"
+                if assigned_path.is_file()
+                and assigned_path.suffix.lower() in IMAGE_EXTENSIONS
+                else next(
+                    (
+                        f"/media/{file.with_suffix(image_suffix).name}"
+                        for image_suffix in IMAGE_EXTENSIONS
+                        if file.with_suffix(image_suffix).exists()
+                    ),
+                    None,
+                )
             )
             videos.append(
                 {
                     **common,
                     "date": datetime.fromtimestamp(file.stat().st_mtime).strftime("%Y-%m-%d"),
                     "thumbnail": thumbnail,
+                    "thumbnail_name": assigned_thumbnail,
                     "bgm": bgm_map.get(file.name, ""),
                 }
             )
@@ -103,7 +113,11 @@ async def home(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={"videos": videos, "images": images, "musics": musics},
+        context={
+            "videos": videos,
+            "images": images,
+            "musics": musics,
+        },
     )
 
 
@@ -137,6 +151,32 @@ async def assign_bgm(video_name: str = Form(...), bgm_name: str = Form("")):
     return RedirectResponse(url="/", status_code=303)
 
 
+@app.post("/assign-thumbnail")
+async def assign_thumbnail(
+    video_name: str = Form(...), thumbnail_name: str = Form("")
+):
+    safe_video_name = Path(video_name).name
+    safe_thumbnail_name = Path(thumbnail_name).name
+    video_path = MEDIA_DIR / safe_video_name
+    if not video_path.is_file() or video_path.suffix.lower() not in VIDEO_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Invalid video")
+
+    thumbnail_map = load_thumbnail_map()
+    key = f"home:{safe_video_name}"
+    if safe_thumbnail_name:
+        thumbnail_path = MEDIA_DIR / safe_thumbnail_name
+        if (
+            not thumbnail_path.is_file()
+            or thumbnail_path.suffix.lower() not in IMAGE_EXTENSIONS
+        ):
+            raise HTTPException(status_code=400, detail="Invalid thumbnail")
+        thumbnail_map[key] = safe_thumbnail_name
+    else:
+        thumbnail_map.pop(key, None)
+    save_thumbnail_map(thumbnail_map)
+    return RedirectResponse(url="/", status_code=303)
+
+
 @app.post("/delete")
 async def delete_file(filename: str = Form(...)):
     file_path = MEDIA_DIR / Path(filename).name
@@ -147,5 +187,13 @@ async def delete_file(filename: str = Form(...)):
             video: music for video, music in bgm_map.items() if music != file_path.name
         }
         save_bgm_map(bgm_map)
+        thumbnail_map = load_thumbnail_map()
+        thumbnail_map.pop(f"home:{file_path.name}", None)
+        thumbnail_map = {
+            video: image
+            for video, image in thumbnail_map.items()
+            if not (video.startswith("home:") and image == file_path.name)
+        }
+        save_thumbnail_map(thumbnail_map)
         file_path.unlink()
     return RedirectResponse(url="/", status_code=303)

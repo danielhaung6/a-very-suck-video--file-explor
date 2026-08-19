@@ -5,6 +5,7 @@ import httpx
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
+from thumbnail_map import load_thumbnail_map, save_thumbnail_map
 
 from . import config
 from .providers import get_provider
@@ -72,6 +73,7 @@ async def cloud_home(request: Request, provider: str = "google", folder: str = "
     providers = [_provider_info(name) for name in PROVIDER_NAMES]
 
     files = []
+    cloud_images = []
     error = ""
     if not active.is_configured():
         error = f"{active.display} 尚未設定。請在 cloud_config.json 填入 client_id / client_secret（見 CLOUD_SETUP.md）。"
@@ -84,6 +86,22 @@ async def cloud_home(request: Request, provider: str = "google", folder: str = "
                 item["can_save_to_media"] = (
                     Path(item["name"]).suffix.lower() in ALLOWED_MEDIA_EXTENSIONS
                 )
+            cloud_images = [item for item in files if item["kind"] == "image"]
+            images_by_id = {item["file_id"]: item for item in cloud_images}
+            thumbnail_map = load_thumbnail_map()
+            for item in files:
+                if item["kind"] != "video":
+                    continue
+                thumbnail_id = thumbnail_map.get(
+                    f"cloud:{provider}:{item['file_id']}", ""
+                )
+                thumbnail = images_by_id.get(thumbnail_id)
+                item["thumbnail_id"] = thumbnail_id if thumbnail else ""
+                item["assigned_thumbnail_url"] = (
+                    thumbnail.get("thumb_url") or thumbnail["stream_url"]
+                    if thumbnail
+                    else ""
+                )
         except Exception as exc:
             error = f"{active.display} 讀取失敗：{exc}"
 
@@ -95,6 +113,7 @@ async def cloud_home(request: Request, provider: str = "google", folder: str = "
             "active": _provider_info(provider),
             "folder": folder,
             "files": files,
+            "cloud_images": cloud_images,
             "error": error,
         },
     )
@@ -158,6 +177,43 @@ async def thumbnail(request: Request, provider: str, file_id: str):
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc))
     return await _proxy(request, url, headers)
+
+
+@router.post("/{provider}/assign-thumbnail")
+async def assign_thumbnail(
+    provider: str,
+    video_id: str = Form(...),
+    thumbnail_id: str = Form(""),
+    folder: str = Form(""),
+):
+    if provider not in PROVIDER_NAMES:
+        raise HTTPException(status_code=400, detail="unknown provider")
+    active = get_provider(provider)
+    if not (active.is_configured() and active.is_linked()):
+        raise HTTPException(status_code=400, detail="provider is not linked")
+
+    try:
+        items = await active.list_items(folder)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"讀取失敗：{exc}")
+    items_by_id = {item["file_id"]: item for item in items if "file_id" in item}
+    if items_by_id.get(video_id, {}).get("kind") != "video":
+        raise HTTPException(status_code=400, detail="invalid video")
+    if thumbnail_id and items_by_id.get(thumbnail_id, {}).get("kind") != "image":
+        raise HTTPException(status_code=400, detail="invalid thumbnail")
+
+    thumbnail_map = load_thumbnail_map()
+    key = f"cloud:{provider}:{video_id}"
+    if thumbnail_id:
+        thumbnail_map[key] = thumbnail_id
+    else:
+        thumbnail_map.pop(key, None)
+    save_thumbnail_map(thumbnail_map)
+
+    folder_param = f"&folder={urllib.parse.quote(folder)}" if folder else ""
+    return RedirectResponse(
+        url=f"/cloud?provider={provider}{folder_param}", status_code=303
+    )
 
 
 @router.post("/{provider}/upload")

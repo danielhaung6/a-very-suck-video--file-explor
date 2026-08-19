@@ -43,6 +43,14 @@
                 <h5>{{
                      video.name }}</h5>
                 <p>大小：{{ video.size }} MB</p><p>更新：{{ video.date }}</p>
+                <form class="bgm-form" action="/assign-thumbnail" method="post">
+                    <input type="hidden" name="video_name" value="{{ video.name }}">
+                    <label for="thumbnail-{{ loop.index }}">縮圖</label>
+                    <select id="thumbnail-{{ loop.index }}" name="thumbnail_name" onchange="this.form.submit()">
+                        <option value="">自動／無縮圖</option>
+                        {% for image in images %}<option value="{{ image.name }}" {% if video.thumbnail_name == image.name %}selected{% endif %}>{{ image.name }}</option>{% endfor %}
+                    </select>
+                </form>
                 <form class="bgm-form" action="/assign-bgm" method="post">
                     <input type="hidden" name="video_name" value="{{ video.name }}">
                     <label for="bgm-{{ loop.index }}">BGM</label>

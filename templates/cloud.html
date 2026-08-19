@@ -182,10 +182,19 @@
                         </div>
                     </a>
                 {% elif item.kind == "video" %}
-                    <video class="player" src="{{ item.stream_url }}" controls preload="metadata"></video>
+                    <video class="player" src="{{ item.stream_url }}"{% if item.assigned_thumbnail_url %} poster="{{ item.assigned_thumbnail_url }}"{% endif %} controls preload="metadata"></video>
                     <div class="media-body">
                         <h5>{{ item.name }}</h5>
                         <p>大小：{{ item.size_mb }} MB</p>
+                        <form class="bgm-form" action="/cloud/{{ active.name }}/assign-thumbnail" method="post">
+                            <input type="hidden" name="video_id" value="{{ item.file_id }}">
+                            <input type="hidden" name="folder" value="{{ folder }}">
+                            <label for="thumbnail-{{ loop.index }}">縮圖</label>
+                            <select id="thumbnail-{{ loop.index }}" name="thumbnail_id" onchange="this.form.submit()">
+                                <option value="">無縮圖</option>
+                                {% for image in cloud_images %}<option value="{{ image.file_id }}" {% if item.thumbnail_id == image.file_id %}selected{% endif %}>{{ image.name }}</option>{% endfor %}
+                            </select>
+                        </form>
                         {% if item.can_save_to_media %}<form class="save-to-media-form" action="/cloud/{{ active.name }}/save-to-media" method="post">
                             <input type="hidden" name="file_id" value="{{ item.file_id }}">
                             <input type="hidden" name="filename" value="{{ item.name }}">
