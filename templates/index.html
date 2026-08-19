@@ -4,61 +4,84 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>影片管理器</title>
+    <script src="/templates/theme.js"></script>
     <link rel="stylesheet" href="/templates/style.css">
 </head>
 <body>
+    <button class="theme-toggle" type="button" data-theme-toggle aria-label="切換顯示主題">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10A10.01 10.01 0 0 0 12 2zm0 18V4a8 8 0 0 1 0 16z"></path></svg>
+        <span data-theme-label>深色模式</span>
+    </button>
     <div class="top-bar">
         <h1>影片管理器</h1>
-
-        <a class="effect-button" href="/cloud" style="margin-right: 12px;">
-            <span>雲端</span>
-        </a>
-
-        {% if not drive_error %}
+        <a class="container-btn-submit" href="/cloud" style="margin-right: 12px;"><span>雲端</span></a>
         <form class="upload-form" action="/upload" method="post" enctype="multipart/form-data">
-            <input type="file" name="files" accept=".mp4,.mov,.mkv,.jpg,.jpeg,.png,.webp,.mp3" multiple required>
-            <button type="submit">上傳至 Google Drive</button>
+            <label class="container-btn-file">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm0 2.5L17.5 8H14zM11 18v-4.17l-1.59 1.58L8 14l4-4 4 4-1.41 1.41L13 13.83V18z"></path></svg>
+                <span>選擇媒體</span>
+                <input type="file" name="files" accept=".mp4,.mov,.mkv,.jpg,.jpeg,.png,.webp,.mp3" multiple required>
+            </label>
+            <button class="container-btn-submit" type="submit">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 7 7l1.41 1.41L11 5.83V16h2V5.83l2.59 2.58L17 7zM5 20v-6H3v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6h-2v6z"></path></svg>
+                <span>上傳至 media 資料夾</span>
+            </button>
         </form>
-        {% endif %}
     </div>
-    {% if drive_error %}
-    <p class="storage-note">{{ drive_error }} 請設定環境變數，或前往 <a href="/cloud?provider=google">雲端儲存</a> 連結帳號。</p>
-    {% else %}
-    <p class="storage-note">所有媒體檔直接儲存在 Google Drive。</p>
+    <p class="storage-note">首頁只顯示本機 media 資料夾中的媒體檔。</p>
+
+    {% if not videos and not images and not musics %}
+    <p class="storage-note">media 資料夾目前沒有媒體檔。</p>
     {% endif %}
 
+    {% if videos %}
     <h2>影片</h2>
     <div class="grid">
         {% for video in videos %}
         <div class="card">
-            <div class="empty-thumbnail">Video</div>
+            {% if video.thumbnail %}<img class="thumbnail" src="{{ video.thumbnail }}" alt="{{ video.name }} thumbnail">{% else %}<div class="empty-thumbnail">No thumbnail</div>{% endif %}
             <div class="body">
-                <h5>{{ video.name }}</h5>
+                <h5>{{
+                     video.name }}</h5>
                 <p>大小：{{ video.size }} MB</p><p>更新：{{ video.date }}</p>
                 <form class="bgm-form" action="/assign-bgm" method="post">
-                    <input type="hidden" name="video_id" value="{{ video.id }}">
+                    <input type="hidden" name="video_name" value="{{ video.name }}">
                     <label for="bgm-{{ loop.index }}">BGM</label>
-                    <select id="bgm-{{ loop.index }}" name="bgm_id" onchange="this.form.submit()">
+                    <select id="bgm-{{ loop.index }}" name="bgm_name" onchange="this.form.submit()">
                         <option value="">不指定</option>
-                        {% for music in musics %}
-                        <option value="{{ music.id }}" {% if video.bgm_id == music.id %}selected{% endif %}>{{ music.name }}</option>
-                        {% endfor %}
+                        {% for music in musics %}<option value="{{ music.name }}" {% if video.bgm == music.name %}selected{% endif %}>{{ music.name }}</option>{% endfor %}
                     </select>
                 </form>
-                <a class="effect-button" href="/drive/files/{{ video.id }}/content" target="_blank">開啟／下載</a>
-                <form class="delete-form" action="/delete" method="post"><input type="hidden" name="file_id" value="{{ video.id }}"><button class="delete-button" type="submit">刪除</button></form>
+                <a class="effect-button" href="/media/{{ video.name }}" target="_blank">開啟／下載</a>
+                <form class="delete-form" action="/delete" method="post"><input type="hidden" name="filename" value="{{ video.name }}"><button class="delete-button" type="submit">刪除</button></form>
             </div>
         </div>
         {% endfor %}
     </div>
+    {% endif %}
 
+    {% if images %}
     <h2>圖片</h2><div class="grid">
-        {% for image in images %}<div class="card"><img class="thumbnail" src="{{ image.url }}" alt="{{ image.name }}"><div class="body"><h5>{{ image.name }}</h5><p>大小：{{ image.size }} MB</p><a class="effect-button" href="{{ image.url }}" target="_blank">開啟／下載</a><form class="delete-form" action="/delete" method="post"><input type="hidden" name="file_id" value="{{ image.id }}"><button class="delete-button" type="submit">刪除</button></form></div></div>{% endfor %}
+        {% for image in images %}<div class="card"><img class="thumbnail" src="{{ image.url }}" alt="{{ image.name }}"><div class="body"><h5>{{ image.name }}</h5><p>大小：{{ image.size }} MB</p><a class="effect-button" href="{{ image.url }}" target="_blank">開啟／下載</a><form class="delete-form" action="/delete" method="post"><input type="hidden" name="filename" value="{{ image.name }}"><button class="delete-button" type="submit">刪除</button></form></div></div>{% endfor %}
     </div>
+    {% endif %}
 
+    {% if musics %}
     <h2>音樂</h2><div class="grid">
-        {% for music in musics %}<div class="card"><div class="body"><h5>{{ music.name }}</h5><p>大小：{{ music.size }} MB</p><audio controls src="{{ music.url }}"></audio><a class="effect-button" href="{{ music.url }}" target="_blank">開啟／下載</a><form class="delete-form" action="/delete" method="post"><input type="hidden" name="file_id" value="{{ music.id }}"><button class="delete-button" type="submit">刪除</button></form></div></div>{% endfor %}
+        {% for music in musics %}<div class="card"><div class="body"><h5>{{ music.name }}</h5><p>大小：{{ music.size }} MB</p><audio controls src="{{ music.url }}"></audio><a class="effect-button" href="{{ music.url }}" target="_blank">開啟／下載</a><form class="delete-form" action="/delete" method="post"><input type="hidden" name="filename" value="{{ music.name }}"><button class="delete-button" type="submit">刪除</button></form></div></div>{% endfor %}
     </div>
-    <script>document.querySelectorAll('.delete-form').forEach(form => form.addEventListener('submit', event => { if (!confirm('確定要從 Google Drive 刪除這個檔案嗎？')) event.preventDefault(); }));</script>
+    {% endif %}
+    <script>
+        document.querySelectorAll('.delete-form').forEach(form => {
+            form.addEventListener('submit', event => {
+                event.preventDefault();
+                const button = form.querySelector('.delete-button');
+                if (button.classList.contains('success')) return;
+                if (!confirm('確定要從 media 資料夾刪除這個檔案嗎？')) return;
+                button.classList.add('success');
+                button.disabled = true;
+                setTimeout(() => form.submit(), 750);
+            });
+        });
+    </script>
 </body>
 </html>

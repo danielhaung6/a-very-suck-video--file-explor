@@ -1,9 +1,28 @@
+:root {
+    --page-bg: #f5f5f5;
+    --surface: #ffffff;
+    --text: #222222;
+    --muted-text: #555555;
+    --card-outline: 1px solid #aeb7c2;
+    --control-border: #333333;
+}
+
+html[data-theme="dark"] {
+    --page-bg: #14171b;
+    --surface: #22262c;
+    --text: #f1f3f5;
+    --muted-text: #b5bdc7;
+    --card-outline: none;
+    --control-border: #aeb7c2;
+}
+
 html,
 body {
     font-family: Arial, "Microsoft JhengHei", sans-serif;
     margin: 32px;
-    background: #f5f5f5;
-    color: #222;
+    background: var(--page-bg);
+    color: var(--text);
+    transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .top-bar {
@@ -29,8 +48,11 @@ body {
 }
 
 .card {
-    background: white;
-    border: 1px solid #000000;
+    box-sizing: border-box;
+    background: var(--surface);
+    border: var(--card-outline);
+    outline: none;
+    box-shadow: none;
     border-radius: 8px;
     overflow: hidden;
 }
@@ -53,6 +75,34 @@ body {
 
 .body {
     padding: 12px;
+}
+
+.theme-toggle {
+    position: fixed;
+    z-index: 20;
+    right: 20px;
+    bottom: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 10px 14px;
+    border: 1px solid var(--control-border);
+    border-radius: 999px;
+    background: var(--surface);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+    color: var(--text);
+    font-weight: 700;
+}
+
+.theme-toggle svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+.theme-toggle:hover {
+    transform: translateY(-1px);
 }
 
 h1 {
@@ -84,7 +134,8 @@ p {
     padding: 8px;
     border: 1px solid #888;
     border-radius: 5px;
-    background: #fff;
+    background: var(--surface);
+    color: var(--text);
 }
 
 button {
@@ -97,6 +148,91 @@ input[type="file"] {
     max-width: 280px;
 }
 
+.container-btn-file,
+.container-btn-submit {
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    height: 46px;
+    margin-top: 0;
+    padding: 0.9em 1.4em;
+    overflow: hidden;
+    border: 0;
+    border-radius: 0.5em;
+    background-color: #307750;
+    box-shadow: 4px 8px 10px -3px rgba(0, 0, 0, 0.356);
+    color: #fff;
+    font: 600 14px Arial, "Microsoft JhengHei", sans-serif;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 250ms, box-shadow 250ms;
+}
+
+.container-btn-file input[type="file"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.container-btn-file > svg,
+.container-btn-submit > svg {
+    width: 20px;
+    height: 20px;
+    margin-right: 0.75em;
+    flex: 0 0 auto;
+    fill: currentColor;
+}
+
+.container-btn-file::before,
+.container-btn-submit::before {
+    position: absolute;
+    z-index: -1;
+    content: "";
+    top: 0;
+    left: 50%;
+    width: 0;
+    height: 100%;
+    border-radius: 0.5em;
+    background-color: #469b61;
+    transform: translateX(-50%);
+    transition: width 350ms;
+}
+
+.container-btn-file:hover::before,
+.container-btn-file:focus-within::before,
+.container-btn-submit:hover::before,
+.container-btn-submit:focus-visible::before {
+    width: 100%;
+}
+
+.container-btn-file:focus-within,
+.container-btn-submit:focus-visible {
+    outline: 3px solid rgba(48, 119, 80, 0.35);
+    outline-offset: 3px;
+}
+
+.container-btn-submit:active {
+    transform: translateY(1px);
+    box-shadow: 2px 4px 7px -3px rgba(0, 0, 0, 0.4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .container-btn-file,
+    .container-btn-submit,
+    .container-btn-file::before,
+    .container-btn-submit::before {
+        transition-duration: 0.01ms;
+    }
+}
+
+
 .effect-button {
     display: inline-block;
     width: 160px;
@@ -106,8 +242,8 @@ input[type="file"] {
     font-size: 14px;
     font-family: sans-serif;
     text-decoration: none;
-    color: #333;
-    border: 2px solid #333;
+    color: var(--text);
+    border: 2px solid var(--control-border);
     text-align: center;
     position: relative;
     overflow: hidden;
@@ -206,6 +342,37 @@ input[type="file"] {
 
 .delete-button.success {
     background-color: #27ae60;
+    color: transparent;
+    pointer-events: none;
+}
+
+.delete-button.success::after {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    content: "\2713\2713";
+    color: #fff;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -5px;
+    animation: double-check-in 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.35) both;
+}
+
+@keyframes double-check-in {
+    0% {
+        opacity: 0;
+        transform: translateY(8px) scale(0.45) rotate(-8deg);
+    }
+    60% {
+        opacity: 1;
+        transform: translateY(-2px) scale(1.15) rotate(2deg);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1) rotate(0);
+    }
 }
 
 .delete-button.success .remove-icon {
@@ -214,4 +381,10 @@ input[type="file"] {
 
 .delete-button.success .check-icon {
     display: inline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .delete-button.success::after {
+        animation-duration: 0.01ms;
+    }
 }
