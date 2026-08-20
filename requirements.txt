@@ -6,3 +6,5 @@ google-auth
 google-auth-oauthlib
 httpx
 jinja2
+imageio-ffmpeg
+yt-dlp
