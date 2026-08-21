@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>影片管理器</title>
     <script src="/templates/theme.js"></script>
-    <link rel="stylesheet" href="/templates/style.css">
+    <link rel="stylesheet" href="/templates/style.css?v=202608211345">
 </head>
 <body>
     <button class="theme-toggle" type="button" data-theme-toggle aria-label="切換顯示主題">
@@ -28,6 +28,31 @@
         </form>
     </div>
     <p class="storage-note">首頁只顯示本機 media 資料夾中的媒體檔。</p>
+
+    <section aria-labelledby="youtube-downloader-title">
+        <h2 id="youtube-downloader-title" class="sr-only">YouTube 下載</h2>
+        <form class="youtube-form" action="/download-youtube" method="post">
+            <label class="sr-only" for="youtube-url">YouTube 影片網址</label>
+            <div class="input__container">
+                <div class="shadow__input" aria-hidden="true"></div>
+                <button class="input__button__shadow" type="button" aria-label="從剪貼簿貼上網址">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#000000" width="20px" height="20px" aria-hidden="true">
+                        <path d="M0 0h24v24H0z" fill="none"></path>
+                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path>
+                    </svg>
+                </button>
+                <input id="youtube-url" name="url" class="input__search" type="text" inputmode="url" autocomplete="url" placeholder="貼上 YouTube 網址" required>
+            </div>
+            <label class="sr-only" for="youtube-media-type">下載格式</label>
+            <select id="youtube-media-type" name="media_type" aria-label="下載格式">
+                <option value="mp4">MP4 影片</option>
+                <option value="mp3">MP3 音訊</option>
+            </select>
+            <button class="container-btn-submit" type="submit">下載</button>
+        </form>
+    </section>
+    {% if download_success %}<p class="download-message success" role="status">{{ download_success }}</p>{% endif %}
+    {% if download_error %}<p class="download-message error" role="alert">{{ download_error }}</p>{% endif %}
 
     {% if not videos and not images and not musics %}
     <p class="storage-note">media 資料夾目前沒有媒體檔。</p>
@@ -79,6 +104,30 @@
     </div>
     {% endif %}
     <script>
+        const youtubeForm = document.querySelector('.youtube-form');
+        const youtubeUrl = document.querySelector('#youtube-url');
+        const pasteUrlButton = document.querySelector('.input__button__shadow');
+
+        youtubeUrl.addEventListener('input', () => {
+            youtubeUrl.value = youtubeUrl.value.replace(/^https?:\/\//i, '');
+        });
+
+        pasteUrlButton.addEventListener('click', async () => {
+            try {
+                const clipboardUrl = await navigator.clipboard.readText();
+                youtubeUrl.value = clipboardUrl.trim().replace(/^https?:\/\//i, '');
+                youtubeUrl.focus();
+            } catch (error) {
+                youtubeUrl.focus();
+            }
+        });
+
+        youtubeForm.addEventListener('submit', () => {
+            const button = youtubeForm.querySelector('.container-btn-submit');
+            button.disabled = true;
+            button.textContent = '下載中...';
+        });
+
         document.querySelectorAll('.delete-form').forEach(form => {
             form.addEventListener('submit', event => {
                 event.preventDefault();
