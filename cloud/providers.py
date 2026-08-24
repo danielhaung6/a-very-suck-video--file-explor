@@ -228,9 +228,14 @@ class OneDriveProvider(CloudProvider):
 
     async def list_items(self, folder: str) -> list:
         token = await self.access_token()
-        parent = folder or "root"
-        if parent == "root":
+        parent = folder or self.cfg.get("folder_path") or ""
+        if not parent or parent == "root" or parent == "/":
             url = f"{self.graph}/me/drive/root/children"
+        elif parent.startswith("/"):
+            url = (
+                f"{self.graph}/me/drive/root:"
+                f"{urllib.parse.quote(parent, safe='/')}:/children"
+            )
         else:
             url = f"{self.graph}/me/drive/items/{urllib.parse.quote(parent)}/children"
 
@@ -307,9 +312,14 @@ class OneDriveProvider(CloudProvider):
 
     async def upload(self, filename: str, content: bytes, folder: str = "") -> None:
         token = await self.access_token()
-        base = folder if folder.startswith("/") else f"/{folder}" if folder else ""
-        target = f"{base}/{filename}".lstrip("/")
-        url = f"{self.graph}/me/drive/root:/{urllib.parse.quote(target, safe='/')}:/content"
+        folder = folder or ""
+        if folder and folder != "root":
+            url = (
+                f"{self.graph}/me/drive/items/{urllib.parse.quote(folder)}:"
+                f"/{urllib.parse.quote(filename)}:/content"
+            )
+        else:
+            url = f"{self.graph}/me/drive/root:/{urllib.parse.quote(filename)}:/content"
         async with httpx.AsyncClient(timeout=300) as client:
             resp = await client.put(
                 url, headers={"Authorization": f"Bearer {token}"}, content=content
@@ -336,7 +346,7 @@ class DropboxProvider(CloudProvider):
 
     async def list_items(self, folder: str) -> list:
         token = await self.access_token()
-        path = folder or ""
+        path = folder or self.cfg.get("folder_path") or ""
         entries = []
         async with httpx.AsyncClient(timeout=60) as client:
             cursor = None
@@ -428,7 +438,7 @@ class DropboxProvider(CloudProvider):
 
     async def upload(self, filename: str, content: bytes, folder: str = "") -> None:
         token = await self.access_token()
-        base = folder.rstrip("/") if folder else ""
+        base = folder or self.cfg.get("folder_path") or ""
         target = f"{base}/{filename}" if base else f"/{filename}"
         if not target.startswith("/"):
             target = "/" + target

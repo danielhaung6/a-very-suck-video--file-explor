@@ -11,10 +11,11 @@ from . import config
 from .providers import get_provider
 
 router = APIRouter(prefix="/cloud", tags=["cloud"])
-templates = Jinja2Templates(directory="templates")
+BASE_DIR = Path(__file__).resolve().parent.parent
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 PROVIDER_NAMES = ("google", "onedrive", "dropbox")
-MEDIA_DIR = Path("media")
+MEDIA_DIR = BASE_DIR / "media"
 ALLOWED_MEDIA_EXTENSIONS = {
     ".mp4",
     ".mov",
@@ -140,12 +141,12 @@ async def auth_callback(
     active = get_provider(provider)
     try:
         await active.exchange(code, _redirect_uri(request, provider))
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"取得 token 失敗：{exc}")
+    except Exception:
+        raise HTTPException(status_code=400, detail="取得 token 失敗，請重試")
     return RedirectResponse(url=f"/cloud?provider={provider}", status_code=303)
 
 
-@router.get("/{provider}/logout")
+@router.post("/{provider}/logout")
 async def logout(provider: str):
     if provider not in PROVIDER_NAMES:
         raise HTTPException(status_code=400, detail="unknown provider")
@@ -155,28 +156,33 @@ async def logout(provider: str):
     return RedirectResponse(url=f"/cloud?provider={provider}", status_code=303)
 
 
-@router.get("/{provider}/stream/{file_id}")
+@router.get("/{provider}/stream/{file_id:path}")
 async def stream(request: Request, provider: str, file_id: str):
     if provider not in PROVIDER_NAMES:
         raise HTTPException(status_code=400, detail="unknown provider")
     active = get_provider(provider)
     try:
         url, headers = await active.stream(file_id)
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=502, detail="取得串流失敗")
     return await _proxy(request, url, headers)
 
 
-@router.get("/{provider}/thumb/{file_id}")
+@router.get("/{provider}/thumb/{file_id:path}")
 async def thumbnail(request: Request, provider: str, file_id: str):
     if provider not in PROVIDER_NAMES:
         raise HTTPException(status_code=400, detail="unknown provider")
     active = get_provider(provider)
     try:
         url, headers = await active.thumbnail(file_id)
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
-    return await _proxy(request, url, headers)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=502, detail="取得縮圖失敗")
+    method = "POST" if provider == "dropbox" else "GET"
+    return await _proxy(request, url, headers, method=method)
 
 
 @router.post("/{provider}/assign-thumbnail")
@@ -194,8 +200,8 @@ async def assign_thumbnail(
 
     try:
         items = await active.list_items(folder)
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"讀取失敗：{exc}")
+    except Exception:
+        raise HTTPException(status_code=502, detail="讀取失敗，請稍後再試")
     items_by_id = {item["file_id"]: item for item in items if "file_id" in item}
     if items_by_id.get(video_id, {}).get("kind") != "video":
         raise HTTPException(status_code=400, detail="invalid video")
@@ -233,8 +239,8 @@ async def upload(
         content = await uploaded_file.read()
         try:
             await active.upload(filename, content, folder)
-        except Exception as exc:
-            raise HTTPException(status_code=502, detail=f"上傳失敗：{exc}")
+        except Exception:
+            raise HTTPException(status_code=502, detail="上傳失敗，請稍後再試")
 
     folder_param = f"&folder={urllib.parse.quote(folder)}" if folder else ""
     return RedirectResponse(
@@ -277,16 +283,25 @@ async def save_to_media(
     )
 
 
-async def _proxy(request: Request, url: str, headers: dict):
+async def _proxy(
+    request: Request, url: str, headers: dict, method: str = "GET"
+) -> StreamingResponse:
+    if not url:
+        raise HTTPException(status_code=502, detail="upstream url unavailable")
     upstream_headers = dict(headers)
     if "range" in request.headers:
         upstream_headers["range"] = request.headers["range"]
     if "user-agent" in request.headers:
         upstream_headers["user-agent"] = request.headers["user-agent"]
 
-    client = httpx.AsyncClient(timeout=None)
-    req = client.build_request("GET", url, headers=upstream_headers)
-    resp = await client.send(req, stream=True)
+    client = httpx.AsyncClient(timeout=None, follow_redirects=True)
+    try:
+        req = client.build_request(method, url, headers=upstream_headers)
+        resp = await client.send(req, stream=True)
+    except Exception:
+        await client.aclose()
+        raise HTTPException(status_code=502, detail="upstream fetch failed")
+
     if resp.status_code >= 400:
         await resp.aclose()
         await client.aclose()

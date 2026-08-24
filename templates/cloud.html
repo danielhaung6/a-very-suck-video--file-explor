@@ -157,9 +157,9 @@
         </div>
     {% else %}
         <div class="provider-actions">
-            <a class="effect-button" href="/cloud/{{ active.name }}/logout">
-                <span>登出</span>
-            </a>
+            <form method="post" action="/cloud/{{ active.name }}/logout" style="display:inline">
+                <button class="effect-button" type="submit"><span>登出</span></button>
+            </form>
             {% if folder %}
             <a class="effect-button" href="/cloud?provider={{ active.name }}">
                 <span>回到根目錄</span>

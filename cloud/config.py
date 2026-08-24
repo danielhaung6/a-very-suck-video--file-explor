@@ -1,8 +1,10 @@
 import json
+import os
 from pathlib import Path
 
-CONFIG_PATH = Path("cloud_config.json")
-TOKENS_PATH = Path("cloud_tokens.json")
+BASE_DIR = Path(__file__).resolve().parent.parent
+CONFIG_PATH = BASE_DIR / "cloud_config.json"
+TOKENS_PATH = BASE_DIR / "cloud_tokens.json"
 
 DEFAULT_CONFIG = {
     "google": {"client_id": "", "client_secret": "", "folder_id": "root"},
@@ -32,9 +34,7 @@ def load_config() -> dict:
 
 
 def save_config(config: dict) -> None:
-    CONFIG_PATH.write_text(
-        json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    _atomic_write(CONFIG_PATH, config)
 
 
 def load_tokens() -> dict:
@@ -48,6 +48,16 @@ def load_tokens() -> dict:
 
 
 def save_tokens(tokens: dict) -> None:
-    TOKENS_PATH.write_text(
-        json.dumps(tokens, ensure_ascii=False, indent=2), encoding="utf-8"
+    _atomic_write(TOKENS_PATH, tokens)
+
+
+def _atomic_write(path: Path, data: dict) -> None:
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    try:
+        os.replace(tmp, path)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise

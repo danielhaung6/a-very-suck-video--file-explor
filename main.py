@@ -1,11 +1,12 @@
 import json
+import os
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlencode, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from imageio_ffmpeg import get_ffmpeg_exe
@@ -18,13 +19,14 @@ from thumbnail_map import load_thumbnail_map, save_thumbnail_map
 app = FastAPI()
 app.include_router(cloud_router)
 
-MEDIA_DIR = Path("media")
-BGM_MAP_FILE = Path("bgm_map.json")
+BASE_DIR = Path(__file__).resolve().parent
+MEDIA_DIR = BASE_DIR / "media"
+BGM_MAP_FILE = BASE_DIR / "bgm_map.json"
 MEDIA_DIR.mkdir(exist_ok=True)
 
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
-app.mount("/templates", StaticFiles(directory="templates"), name="templates")
+app.mount("/templates", StaticFiles(directory=BASE_DIR / "templates"), name="templates")
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".mkv", ".jpg", ".jpeg", ".png", ".webp", ".mp3"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv"}
@@ -45,9 +47,15 @@ def load_bgm_map() -> dict[str, str]:
 
 
 def save_bgm_map(bgm_map: dict[str, str]) -> None:
-    BGM_MAP_FILE.write_text(
+    tmp = BGM_MAP_FILE.with_name(BGM_MAP_FILE.name + ".tmp")
+    tmp.write_text(
         json.dumps(bgm_map, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    try:
+        os.replace(tmp, BGM_MAP_FILE)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def get_available_path(filename: str) -> Path:
@@ -98,6 +106,10 @@ def download_youtube_media(url: str, media_type: str) -> None:
         "quiet": True,
         "no_warnings": True,
         "ffmpeg_location": get_ffmpeg_exe(),
+        "writethumbnail": True,
+        "postprocessors": [
+            {"key": "FFmpegMetadata", "add_metadata": True},
+        ],
     }
     if media_type == "mp3":
         options.update(
@@ -108,7 +120,8 @@ def download_youtube_media(url: str, media_type: str) -> None:
                         "key": "FFmpegExtractAudio",
                         "preferredcodec": "mp3",
                         "preferredquality": "192",
-                    }
+                    },
+                    {"key": "EmbedThumbnail", "already_have_thumbnail": True},
                 ],
             }
         )
@@ -117,6 +130,9 @@ def download_youtube_media(url: str, media_type: str) -> None:
             {
                 "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
                 "merge_output_format": "mp4",
+                "postprocessors": [
+                    {"key": "EmbedThumbnail", "already_have_thumbnail": True},
+                ],
             }
         )
 
@@ -125,7 +141,7 @@ def download_youtube_media(url: str, media_type: str) -> None:
 
 
 @app.get("/")
-async def home(request: Request):
+async def home(request: Request, response: Response):
     videos = []
     images = []
     musics = []
@@ -171,17 +187,26 @@ async def home(request: Request):
         elif suffix == ".mp3":
             musics.append({**common, "url": f"/media/{file.name}"})
 
-    return templates.TemplateResponse(
+    flash_type = request.cookies.get("flash_type", "")
+    flash_message = unquote(request.cookies.get("flash_message", ""))
+    download_success = flash_message if flash_type == "success" else ""
+    download_error = flash_message if flash_type == "error" else ""
+
+    template = templates.TemplateResponse(
         request=request,
         name="index.html",
         context={
             "videos": videos,
             "images": images,
             "musics": musics,
-            "download_success": request.query_params.get("download_success", ""),
-            "download_error": request.query_params.get("download_error", ""),
+            "download_success": download_success,
+            "download_error": download_error,
         },
     )
+    if flash_message:
+        template.set_cookie("flash_type", "", path="/", max_age=0)
+        template.set_cookie("flash_message", "", path="/", max_age=0)
+    return template
 
 
 @app.post("/upload")
@@ -196,26 +221,24 @@ async def upload_files(files: list[UploadFile] = File(...)):
 
 @app.post("/download-youtube")
 async def download_youtube(url: str = Form(...), media_type: str = Form("mp4")):
+    def flash(message: str, kind: str = "error") -> RedirectResponse:
+        resp = RedirectResponse(url="/", status_code=303)
+        resp.set_cookie("flash_type", kind, path="/")
+        resp.set_cookie("flash_message", quote(message), path="/")
+        return resp
+
     normalized_url = normalize_youtube_url(url)
     if normalized_url is None:
-        query = urlencode({"download_error": "請輸入有效的 YouTube 網址。"})
-        return RedirectResponse(url=f"/?{query}", status_code=303)
+        return flash("請輸入有效的 YouTube 網址。")
     if media_type not in {"mp3", "mp4"}:
-        query = urlencode({"download_error": "請選擇 MP3 或 MP4 格式。"})
-        return RedirectResponse(url=f"/?{query}", status_code=303)
+        return flash("請選擇 MP3 或 MP4 格式。")
 
     try:
         await run_in_threadpool(download_youtube_media, normalized_url, media_type)
     except (DownloadError, OSError):
-        query = urlencode(
-            {"download_error": "下載失敗。請確認影片可公開觀看後再試一次。"}
-        )
-        return RedirectResponse(url=f"/?{query}", status_code=303)
+        return flash("下載失敗。請確認影片可公開觀看後再試一次。")
 
-    query = urlencode(
-        {"download_success": f"{media_type.upper()} 已下載至 media 資料夾。"}
-    )
-    return RedirectResponse(url=f"/?{query}", status_code=303)
+    return flash(f"{media_type.upper()} 已下載至 media 資料夾。", kind="success")
 
 
 @app.post("/assign-bgm")
