@@ -29,6 +29,30 @@
     </div>
     <p class="storage-note">首頁只顯示本機 media 資料夾中的媒體檔。</p>
 
+    <section class="youtube-downloader" aria-labelledby="youtube-downloader-title">
+        <h2 id="youtube-downloader-title">YouTube 下載</h2>
+        <form class="youtube-form" action="/download-youtube" method="post">
+            <label for="youtube-url">YouTube 網址</label>
+            <input id="youtube-url" name="url" type="text" inputmode="url" autocomplete="url" placeholder="https://www.youtube.com/watch?v=..." required>
+<label for="youtube-media-type">格式</label>
+            <div class="media-switch" id="youtube-media-type" role="group" aria-label="媒體格式">
+                <span class="media-switch-label">影片</span>
+                <label class="toggle">
+                    <input type="checkbox" id="youtube-media-toggle" aria-label="切換影片或音訊">
+                    <span class="track">
+                        <span class="thumb"></span>
+                    </span>
+                </label>
+                <span class="media-switch-label">音訊</span>
+                <input type="hidden" name="media_type" value="mp4">
+            </div>
+            <button type="submit">下載到 media 資料夾</button>
+        </form>
+        {% if download_success %}<p class="download-message success" role="status">{{ download_success }}</p>{% endif %}
+        {% if download_error %}<p class="download-message error" role="alert">{{ download_error }}</p>{% endif %}
+        <p>請只下載你有權保存的內容。</p>
+    </section>
+
     {% if not videos and not images and not musics %}
     <p class="storage-note">media 資料夾目前沒有媒體檔。</p>
     {% endif %}
@@ -79,6 +103,13 @@
     </div>
     {% endif %}
     <script>
+        const mediaToggle = document.querySelector('#youtube-media-toggle');
+        const mediaType = document.querySelector('input[name="media_type"]');
+        if (mediaToggle && mediaType) {
+            mediaToggle.addEventListener('change', () => {
+                mediaType.value = mediaToggle.checked ? 'mp3' : 'mp4';
+            });
+        }
         document.querySelectorAll('.delete-form').forEach(form => {
             form.addEventListener('submit', event => {
                 event.preventDefault();
