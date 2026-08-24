@@ -1,11 +1,16 @@
 import json
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlencode, urlparse
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from imageio_ffmpeg import get_ffmpeg_exe
+from yt_dlp import YoutubeDL
+from yt_dlp.utils import DownloadError
 
 from cloud.router import router as cloud_router
 from thumbnail_map import load_thumbnail_map, save_thumbnail_map
@@ -24,6 +29,7 @@ app.mount("/templates", StaticFiles(directory="templates"), name="templates")
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".mkv", ".jpg", ".jpeg", ".png", ".webp", ".mp3"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+YOUTUBE_HOSTS = {"youtube.com", "youtu.be", "youtube-nocookie.com"}
 
 
 def load_bgm_map() -> dict[str, str]:
@@ -61,6 +67,61 @@ def get_available_path(filename: str) -> Path:
         if not candidate.exists():
             return candidate
         counter += 1
+
+
+def normalize_youtube_url(value: str) -> str | None:
+    url = value.strip()
+    if not url:
+        return None
+    if "://" not in url:
+        url = f"https://{url.lstrip('/')}"
+
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return None
+    hostname = (parsed.hostname or "").lower().rstrip(".")
+    if parsed.scheme not in {"http", "https"} or not any(
+        hostname == host or hostname.endswith(f".{host}") for host in YOUTUBE_HOSTS
+    ):
+        return None
+    return url
+
+
+def download_youtube_media(url: str, media_type: str) -> None:
+    options = {
+        "outtmpl": str(MEDIA_DIR.resolve() / "%(title)s [%(id)s].%(ext)s"),
+        "noplaylist": True,
+        "windowsfilenames": True,
+        "trim_file_name": 180,
+        "overwrites": False,
+        "quiet": True,
+        "no_warnings": True,
+        "ffmpeg_location": get_ffmpeg_exe(),
+    }
+    if media_type == "mp3":
+        options.update(
+            {
+                "format": "bestaudio/best",
+                "postprocessors": [
+                    {
+                        "key": "FFmpegExtractAudio",
+                        "preferredcodec": "mp3",
+                        "preferredquality": "192",
+                    }
+                ],
+            }
+        )
+    else:
+        options.update(
+            {
+                "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
+                "merge_output_format": "mp4",
+            }
+        )
+
+    with YoutubeDL(options) as downloader:
+        downloader.download([url])
 
 
 @app.get("/")
@@ -117,6 +178,8 @@ async def home(request: Request):
             "videos": videos,
             "images": images,
             "musics": musics,
+            "download_success": request.query_params.get("download_success", ""),
+            "download_error": request.query_params.get("download_error", ""),
         },
     )
 
@@ -129,6 +192,30 @@ async def upload_files(files: list[UploadFile] = File(...)):
             while chunk := await uploaded_file.read(1024 * 1024):
                 output.write(chunk)
     return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/download-youtube")
+async def download_youtube(url: str = Form(...), media_type: str = Form("mp4")):
+    normalized_url = normalize_youtube_url(url)
+    if normalized_url is None:
+        query = urlencode({"download_error": "請輸入有效的 YouTube 網址。"})
+        return RedirectResponse(url=f"/?{query}", status_code=303)
+    if media_type not in {"mp3", "mp4"}:
+        query = urlencode({"download_error": "請選擇 MP3 或 MP4 格式。"})
+        return RedirectResponse(url=f"/?{query}", status_code=303)
+
+    try:
+        await run_in_threadpool(download_youtube_media, normalized_url, media_type)
+    except (DownloadError, OSError):
+        query = urlencode(
+            {"download_error": "下載失敗。請確認影片可公開觀看後再試一次。"}
+        )
+        return RedirectResponse(url=f"/?{query}", status_code=303)
+
+    query = urlencode(
+        {"download_success": f"{media_type.upper()} 已下載至 media 資料夾。"}
+    )
+    return RedirectResponse(url=f"/?{query}", status_code=303)
 
 
 @app.post("/assign-bgm")
