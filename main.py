@@ -1,5 +1,6 @@
 import json
 import os
+import secrets
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
@@ -18,6 +19,31 @@ from thumbnail_map import load_thumbnail_map, save_thumbnail_map
 
 app = FastAPI()
 app.include_router(cloud_router)
+
+SESSION_COOKIE = "vm_session"
+
+
+@app.middleware("http")
+async def session_middleware(request: Request, call_next):
+    session_id = request.cookies.get(SESSION_COOKIE, "")
+    if not session_id:
+        session_id = secrets.token_hex(16)
+        request.state.is_new_session = True
+    else:
+        request.state.is_new_session = False
+    request.state.session_id = session_id
+
+    response = await call_next(request)
+    if request.state.is_new_session:
+        response.set_cookie(
+            SESSION_COOKIE,
+            session_id,
+            max_age=60 * 60 * 24 * 365,
+            httponly=True,
+            samesite="lax",
+            path="/",
+        )
+    return response
 
 BASE_DIR = Path(__file__).resolve().parent
 MEDIA_DIR = BASE_DIR / "media"

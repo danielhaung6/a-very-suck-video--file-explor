@@ -15,9 +15,10 @@ class CloudProvider:
     token_url = ""
     scopes = ""
 
-    def __init__(self) -> None:
+    def __init__(self, user_id: str = "") -> None:
+        self.user_id = user_id or "default"
         self.cfg = config.load_config().get(self.name, {})
-        self.tokens = config.load_tokens().get(self.name, {})
+        self.tokens = config.load_tokens(self.user_id).get(self.name, {})
         self._access_token = self.tokens.get("access_token", "")
         self._expires_at = self.tokens.get("expires_at", 0)
 
@@ -80,9 +81,9 @@ class CloudProvider:
             "access_token": self._access_token,
             "expires_at": self._expires_at,
         }
-        all_tokens = config.load_tokens()
+        all_tokens = config.load_tokens(self.user_id)
         all_tokens[self.name] = self.tokens
-        config.save_tokens(all_tokens)
+        config.save_tokens(self.user_id, all_tokens)
 
     async def list_items(self, folder: str) -> list:
         raise NotImplementedError
@@ -464,7 +465,7 @@ PROVIDER_CLASSES = {
 }
 
 
-def get_provider(name: str) -> CloudProvider:
+def get_provider(name: str, user_id: str = "") -> CloudProvider:
     if name not in PROVIDER_CLASSES:
         raise ValueError(f"unknown provider: {name}")
-    return PROVIDER_CLASSES[name]()
+    return PROVIDER_CLASSES[name](user_id)

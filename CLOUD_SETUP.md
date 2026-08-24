@@ -2,10 +2,14 @@
 
 本專案可透過 OAuth 2.0 連結 **Google Drive、OneDrive、Dropbox**，在網頁上瀏覽、播放並上傳檔案。
 
+> **重要**：`client_id / client_secret` 是**伺服器端（管理員）一次性設定**的 OAuth App 憑證。
+> 一般使用者**不用做任何設定**，只要在網頁上按「連結帳號」用自己的雲端帳號直接登入即可，就像一般網站一樣。
+> 每位使用者（每個瀏覽器）的 token 會分開存放，互不干擾。
+
 整個流程分兩步：
 
-1. 在各家的開發者後台建立應用程式，拿到 **client_id / client_secret**
-2. 填入本機的 `cloud_config.json`（第一次跑會自動產生，檔案被 git 忽略）
+1. 管理員在各家的開發者後台建立應用程式，拿到 **client_id / client_secret**
+2. 管理員填入本機的 `cloud_config.json`（第一次跑會自動產生，檔案被 git 忽略）
 
 > 本機預設位址 `http://127.0.0.1:8000`。伺服器如果換 port，callback 網址也要跟著改。
 
@@ -25,7 +29,7 @@
 - `onedrive.folder_path`：上傳目標資料夾，例如 `Videos`，留空＝根目錄。
 - `dropbox.folder_path`：上傳目標資料夾，例如 `/Videos`，留空＝根目錄。
 
-連上帳號後，成功存下的是 `cloud_tokens.json`（也是被 git 忽略，別外流）。
+連上帳號後，成功存下的是 `cloud_tokens.json`（也是被 git 忽略，別外流）。檔案內以使用者 session id 分區，每位使用者各存各的 token。
 
 ---
 

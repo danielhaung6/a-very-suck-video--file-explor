@@ -37,18 +37,33 @@ def save_config(config: dict) -> None:
     _atomic_write(CONFIG_PATH, config)
 
 
-def load_tokens() -> dict:
+def load_all_tokens() -> dict:
     if not TOKENS_PATH.exists():
         return {}
     try:
         data = json.loads(TOKENS_PATH.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
     except (json.JSONDecodeError, OSError):
         return {}
+    if not isinstance(data, dict):
+        return {}
+
+    provider_names = set(DEFAULT_CONFIG)
+    if data and set(data) <= provider_names:
+        data = {"default": data}
+        _atomic_write(TOKENS_PATH, data)
+    return data
 
 
-def save_tokens(tokens: dict) -> None:
-    _atomic_write(TOKENS_PATH, tokens)
+def load_tokens(user_id: str) -> dict:
+    all_tokens = load_all_tokens()
+    tokens = all_tokens.get(user_id, {})
+    return tokens if isinstance(tokens, dict) else {}
+
+
+def save_tokens(user_id: str, tokens: dict) -> None:
+    all_tokens = load_all_tokens()
+    all_tokens[user_id] = tokens
+    _atomic_write(TOKENS_PATH, all_tokens)
 
 
 def _atomic_write(path: Path, data: dict) -> None:

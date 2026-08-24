@@ -55,8 +55,12 @@ def _redirect_uri(request: Request, provider: str) -> str:
     return base_url + f"/cloud/{provider}/callback"
 
 
-def _provider_info(name: str) -> dict:
-    provider = get_provider(name)
+def _session_id(request: Request) -> str:
+    return getattr(request.state, "session_id", "") or "default"
+
+
+def _provider_info(name: str, user_id: str = "") -> dict:
+    provider = get_provider(name, user_id)
     return {
         "name": provider.name,
         "display": provider.display,
@@ -70,14 +74,15 @@ async def cloud_home(request: Request, provider: str = "google", folder: str = "
     if provider not in PROVIDER_NAMES:
         raise HTTPException(status_code=400, detail="unknown provider")
 
-    active = get_provider(provider)
-    providers = [_provider_info(name) for name in PROVIDER_NAMES]
+    user_id = _session_id(request)
+    active = get_provider(provider, user_id)
+    providers = [_provider_info(name, user_id) for name in PROVIDER_NAMES]
 
     files = []
     cloud_images = []
     error = ""
     if not active.is_configured():
-        error = f"{active.display} 尚未設定。請在 cloud_config.json 填入 client_id / client_secret（見 CLOUD_SETUP.md）。"
+        error = f"{active.display} 尚未設定。請管理員在 cloud_config.json 填入 client_id / client_secret（見 CLOUD_SETUP.md）。"
     elif not active.is_linked():
         error = f"{active.display} 尚未連結帳號。"
     else:
@@ -111,7 +116,7 @@ async def cloud_home(request: Request, provider: str = "google", folder: str = "
         name="cloud.html",
         context={
             "providers": providers,
-            "active": _provider_info(provider),
+            "active": _provider_info(provider, user_id),
             "folder": folder,
             "files": files,
             "cloud_images": cloud_images,
@@ -124,7 +129,7 @@ async def cloud_home(request: Request, provider: str = "google", folder: str = "
 async def auth_start(request: Request, provider: str):
     if provider not in PROVIDER_NAMES:
         raise HTTPException(status_code=400, detail="unknown provider")
-    active = get_provider(provider)
+    active = get_provider(provider, _session_id(request))
     if not active.is_configured():
         raise HTTPException(status_code=400, detail="provider is not configured")
     return RedirectResponse(active.build_auth_uri(_redirect_uri(request, provider)))
@@ -138,7 +143,7 @@ async def auth_callback(
         raise HTTPException(status_code=400, detail="unknown provider")
     if error:
         raise HTTPException(status_code=400, detail=f"OAuth 錯誤：{error}")
-    active = get_provider(provider)
+    active = get_provider(provider, _session_id(request))
     try:
         await active.exchange(code, _redirect_uri(request, provider))
     except Exception:
@@ -147,12 +152,13 @@ async def auth_callback(
 
 
 @router.post("/{provider}/logout")
-async def logout(provider: str):
+async def logout(request: Request, provider: str):
     if provider not in PROVIDER_NAMES:
         raise HTTPException(status_code=400, detail="unknown provider")
-    all_tokens = config.load_tokens()
-    all_tokens.pop(provider, None)
-    config.save_tokens(all_tokens)
+    all_tokens = config.load_all_tokens()
+    user_tokens = all_tokens.get(_session_id(request), {})
+    user_tokens.pop(provider, None)
+    config.save_tokens(_session_id(request), user_tokens)
     return RedirectResponse(url=f"/cloud?provider={provider}", status_code=303)
 
 
@@ -160,7 +166,7 @@ async def logout(provider: str):
 async def stream(request: Request, provider: str, file_id: str):
     if provider not in PROVIDER_NAMES:
         raise HTTPException(status_code=400, detail="unknown provider")
-    active = get_provider(provider)
+    active = get_provider(provider, _session_id(request))
     try:
         url, headers = await active.stream(file_id)
     except HTTPException:
@@ -174,7 +180,7 @@ async def stream(request: Request, provider: str, file_id: str):
 async def thumbnail(request: Request, provider: str, file_id: str):
     if provider not in PROVIDER_NAMES:
         raise HTTPException(status_code=400, detail="unknown provider")
-    active = get_provider(provider)
+    active = get_provider(provider, _session_id(request))
     try:
         url, headers = await active.thumbnail(file_id)
     except HTTPException:
@@ -187,6 +193,7 @@ async def thumbnail(request: Request, provider: str, file_id: str):
 
 @router.post("/{provider}/assign-thumbnail")
 async def assign_thumbnail(
+    request: Request,
     provider: str,
     video_id: str = Form(...),
     thumbnail_id: str = Form(""),
@@ -194,7 +201,7 @@ async def assign_thumbnail(
 ):
     if provider not in PROVIDER_NAMES:
         raise HTTPException(status_code=400, detail="unknown provider")
-    active = get_provider(provider)
+    active = get_provider(provider, _session_id(request))
     if not (active.is_configured() and active.is_linked()):
         raise HTTPException(status_code=400, detail="provider is not linked")
 
@@ -224,13 +231,14 @@ async def assign_thumbnail(
 
 @router.post("/{provider}/upload")
 async def upload(
+    request: Request,
     provider: str,
     folder: str = Form(""),
     files: list[UploadFile] = File(...),
 ):
     if provider not in PROVIDER_NAMES:
         raise HTTPException(status_code=400, detail="unknown provider")
-    active = get_provider(provider)
+    active = get_provider(provider, _session_id(request))
     if not (active.is_configured() and active.is_linked()):
         raise HTTPException(status_code=400, detail="provider is not linked")
 
@@ -250,6 +258,7 @@ async def upload(
 
 @router.post("/{provider}/save-to-media")
 async def save_to_media(
+    request: Request,
     provider: str,
     file_id: str = Form(...),
     filename: str = Form(...),
@@ -257,7 +266,7 @@ async def save_to_media(
 ):
     if provider not in PROVIDER_NAMES:
         raise HTTPException(status_code=400, detail="unknown provider")
-    active = get_provider(provider)
+    active = get_provider(provider, _session_id(request))
     if not (active.is_configured() and active.is_linked()):
         raise HTTPException(status_code=400, detail="provider is not linked")
 
