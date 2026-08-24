@@ -1,0 +1,3 @@
+[submodule "online-ready"]
+	path = online-ready
+	url = https://github.com/danielhaung6/online-ready.git
